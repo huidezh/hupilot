@@ -72,6 +72,9 @@
     window.addEventListener('message', function(e) {
       if (e.data && e.data.type === 'biliSubtitleReady') showBiliToast('虎宝已读取视频');
     });
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'ytSubtitleReady') showBiliToast('虎宝已读取视频');
+    });
     readAISettings().then(function(s) {
       expWebEditEnabled = s.experimentalWebEdit === true;
       try { localStorage.setItem('hupilot_exp_web_edit', expWebEditEnabled ? '1' : '0'); } catch(e) {}
@@ -87,6 +90,8 @@ if (transBtn) transBtn.style.display = expPageTranslationEnabled ? '' : 'none';
       if (browserBtn) browserBtn.style.display = browserControlEnabled ? '' : 'none';
       var subBtn = document.getElementById('ai-chat-bili-subtitle-btn');
       if (subBtn) subBtn.style.display = (/bilibili\.com\/video\//.test(window.location.href)) ? '' : 'none';
+      var ytSubBtn = document.getElementById('ai-chat-yt-subtitle-btn');
+      if (ytSubBtn) ytSubBtn.style.display = (/youtube\.com\/(watch\?|shorts\/)/.test(window.location.href)) ? '' : 'none';
       if (s.deskPetAlways === true && floatingBtn) {
         floatingBtn.style.display = 'flex';
         startFloatingTimer();
@@ -177,6 +182,7 @@ sidebar.innerHTML =
             '<button id="ai-chat-webqa-btn" title="此模式下不识别当前网页内容">联网问答模式</button>' +
 '<button id="ai-chat-browser-btn" title="通过 AI 操控此页面" style="display:none">浏览器操控</button>' +
 '<button id="ai-chat-bili-subtitle-btn" title="下载 B 站视频字幕" style="display:none">下载字幕</button>' +
+'<button id="ai-chat-yt-subtitle-btn" title="下载 YouTube 视频字幕" style="display:none">下载字幕</button>' +
           '</div>' +
           '<div id="ai-chat-input-row">' +
             '<textarea id="ai-chat-input" rows="1" placeholder="输入消息..."></textarea>' +
@@ -598,6 +604,9 @@ sidebar.innerHTML =
     });
     document.getElementById('ai-chat-bili-subtitle-btn').addEventListener('click', function() {
       downloadBilibiliSubtitle();
+    });
+    document.getElementById('ai-chat-yt-subtitle-btn').addEventListener('click', function() {
+      downloadYoutubeSubtitle();
     });
     document.getElementById('ai-chat-search-provider').addEventListener('change', function() {
       var val = this.value;
@@ -1977,7 +1986,6 @@ sidebar.innerHTML =
     if (!actions || actions.length === 0) {
       actions = getDefaultQuickActions();
     }
-    // 合并自定义快捷指令
     readAISettings().then(function(settings) {
       var actionEnabled = {};
       var actionIds = isOutlook ? ['summary','reply','keypoints','translate'] : ['summary','translate'];
@@ -2139,10 +2147,24 @@ sidebar.innerHTML =
     var url = window.location.href;
     if (url === currentFullUrl) return;
     currentFullUrl = url;
+    optimizer = getOptimizer(url);
+    if (isStreaming) { stopAI(); isStreaming = false; removeTyping(); }
     exitWebQaMode();
+    var subBtn = document.getElementById('ai-chat-bili-subtitle-btn');
+    if (subBtn) subBtn.style.display = (/bilibili\.com\/video\//.test(url)) ? '' : 'none';
+    var ytSubBtn = document.getElementById('ai-chat-yt-subtitle-btn');
+    if (ytSubBtn) ytSubBtn.style.display = (/youtube\.com\/(watch\?|shorts\/)/.test(url)) ? '' : 'none';
+    window.postMessage({type: 'ytClearSubtitleCache'}, '*');
     var domainKey = getDomainKey(url);
+    var isVideoPage = /bilibili\.com\/video\//.test(url) || /youtube\.com\/(watch\?|shorts\/)/.test(url);
     if (domainKey !== currentDomainKey) {
       currentDomainKey = domainKey;
+      createSession(url, optimizer && optimizer.name).then(function(sid) {
+        if (!sid) return;
+        showChatView(); renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle();
+        setTimeout(refreshPageContent, 600);
+      });
+    } else if (isVideoPage) {
       createSession(url, optimizer && optimizer.name).then(function(sid) {
         if (!sid) return;
         showChatView(); renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle();
@@ -3967,7 +3989,6 @@ var text = (function() {
       if (sub.error) { showToast('字幕获取失败: ' + sub.error); return; }
       var title = data.title || 'bilibili_subtitle';
       title = title.replace(/[/\\?%*:|"<>]/g, '_');
-      // 转 SRT 格式
       var srt = '';
       sub.segments.forEach(function(seg, i) {
         srt += (i + 1) + '\n';
@@ -3984,6 +4005,53 @@ var text = (function() {
       showToast('字幕已保存');
     }).catch(function() {
       setTimeout(downloadBilibiliSubtitle, 2000);
+    });
+  }
+
+  function downloadYoutubeSubtitle() {
+    if (typeof getYoutubeSubtitles !== 'function') {
+      showToast('不在 YouTube 视频页面');
+      return;
+    }
+    if (!window._ytSubRetryCount) window._ytSubRetryCount = 0;
+    var retry = window._ytSubRetryCount;
+    if (retry === 0) showToast('字幕下载中...');
+    getYoutubeSubtitles().then(function(data) {
+      if (!data || data.error === 'not_ready') {
+        window._ytSubRetryCount++;
+        if (window._ytSubRetryCount >= 30) {
+          window._ytSubRetryCount = 0;
+          showToast('字幕加载超时，请刷新页面');
+          return;
+        }
+        setTimeout(downloadYoutubeSubtitle, 2000);
+        return;
+      }
+      window._ytSubRetryCount = 0;
+      if (!data || data.error || !data.subtitles || !data.subtitles.length) {
+        showToast('未获取到字幕数据');
+        return;
+      }
+      var sub = data.subtitles[0];
+      if (sub.error) { showToast('字幕获取失败: ' + sub.error); return; }
+      var title = data.title || document.title.replace(' - YouTube', '') || 'youtube_subtitle';
+      title = title.replace(/[/\\?%*:|"<>]/g, '_');
+      var srt = '';
+      sub.segments.forEach(function(seg, i) {
+        srt += (i + 1) + '\n';
+        srt += formatSrtTime(seg.from) + ' --> ' + formatSrtTime(seg.to) + '\n';
+        srt += seg.text + '\n\n';
+      });
+      var blob = new Blob(['\ufeff' + srt], { type: 'text/plain;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = title + '.' + sub.lan + '.srt';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('字幕已保存');
+    }).catch(function() {
+      setTimeout(downloadYoutubeSubtitle, 2000);
     });
   }
 

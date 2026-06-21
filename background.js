@@ -24,6 +24,28 @@ chrome.runtime.onInstalled.addListener(registerBiliInterceptor);
 chrome.runtime.onStartup.addListener(registerBiliInterceptor);
 registerBiliInterceptor();
 
+// ===== YouTube 字幕拦截器注册（动态 content script，MAIN world + document_start） =====
+async function registerYtInterceptor() {
+  try {
+    var scripts = await chrome.scripting.getRegisteredContentScripts();
+    if (scripts.some(function(s) { return s.id === 'yt-subtitle-interceptor'; })) return;
+    await chrome.scripting.registerContentScripts([{
+      id: 'yt-subtitle-interceptor',
+      matches: ['*://www.youtube.com/watch*', '*://www.youtube.com/shorts/*'],
+      js: ['content/youtube-subtitle-main.js'],
+      world: 'MAIN',
+      runAt: 'document_start',
+    }]);
+  } catch(e) {
+    if (e.message.indexOf('Duplicate script ID') < 0) {
+      console.log('[yt-sub] register err:', e.message);
+    }
+  }
+}
+chrome.runtime.onInstalled.addListener(registerYtInterceptor);
+chrome.runtime.onStartup.addListener(registerYtInterceptor);
+registerYtInterceptor();
+
 // ===== Edge TTS 直调引擎（无需 Cloudflare 部署） =====
 var edgeTtsTokenCache = null;
 
@@ -820,6 +842,50 @@ chrome.runtime.onMessage.addListener(function(m, s, r) {
       });
     }
     pollCache();
+    return true;
+  }
+  if (m.type === 'youtubeSubtitle') {
+    if (!s.tab || !s.tab.id) { console.log('[YT-BG] no tab'); r({ error: 'no_tab' }); return; }
+    console.log('[YT-BG] polling start tab=' + s.tab.id);
+    var pollTabId = s.tab.id;
+    var pollCount = 0;
+    function pollYtCache() {
+      chrome.scripting.executeScript({
+        target: { tabId: pollTabId },
+        world: 'MAIN',
+        func: function() {
+          var c = window.__YT_SUBTITLE_CACHE__;
+          if (c) {
+            try {
+              if (!c.title) c.title = (document.title || '').replace(' - YouTube', '');
+              if (!c.author) {
+                var el = document.querySelector('#owner #channel-name a');
+                if (el) c.author = el.textContent.trim();
+              }
+            } catch(e) {}
+            return c;
+          }
+          return { error: 'not_ready' };
+        }
+      }).then(function(results) {
+        var res = results && results[0] && results[0].result;
+        console.log('[YT-BG] poll#' + pollCount + ' res:', res ? (res.error || 'subtitles:' + (res.subtitles ? res.subtitles.length : 'none')) : 'no result');
+        if (res && !res.error) {
+          r(res);
+        } else if (pollCount >= 30) {
+          r(res || { error: 'timeout', msg: '等待字幕超时' });
+        } else {
+          pollCount++;
+          setTimeout(pollYtCache, 500);
+        }
+      }).catch(function(err) {
+        console.log('[YT-BG] poll err:', err.message);
+        if (pollCount >= 30) { r({ error: err.message }); return; }
+        pollCount++;
+        setTimeout(pollYtCache, 500);
+      });
+    }
+    pollYtCache();
     return true;
   }
   if (m.type !== 'aiRequest') return;
