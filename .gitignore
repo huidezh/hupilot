@@ -1,0 +1,6 @@
+node_modules/
+*.zip
+*.pem
+*.pyc
+.DS_Store
+Thumbs.db

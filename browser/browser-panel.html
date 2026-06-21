@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px; background: #fff; color: #333;
+  display: flex; flex-direction: column; height: 100vh;
+  overflow: hidden; line-height: 1.5;
+}
+body.dark { background: #1e1e1e; color: #e0e0e0; }
+
+/* === Header === */
+#header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid #e8e8e8; flex-shrink: 0; min-height: 40px;
+}
+.dark #header { border-bottom-color: #333; }
+#header h2 { flex: 1; margin: 0 0 0 6px; font-size: 15px; font-weight: 600; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dark #header h2 { color: #e0e0e0; }
+#headerActions { display: flex; gap: 4px; flex-shrink: 0; }
+.hdr-btn {
+  background: none; border: none; cursor: pointer; width: 20px; height: 24px;
+  padding: 0; border-radius: 4px; color: #666; display: inline-flex;
+  align-items: center; justify-content: center;
+}
+.hdr-btn:hover { background: #f0f0f0; color: #222; }
+.dark .hdr-btn { color: #999; }
+.dark .hdr-btn:hover { background: #333; color: #eee; }
+
+/* === Log Area === */
+#logArea {
+  flex: 1; overflow-y: auto; padding: 8px 12px; font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+}
+.log-entry { padding: 2px 0; border-bottom: 1px solid #f0f0f0; }
+.dark .log-entry { border-bottom-color: #2a2a2a; }
+.log-entry:last-child { border-bottom: none; }
+.log-time { color: #bbb; margin-right: 6px; }
+.dark .log-time { color: #666; }
+.log-step { color: #888; margin-right: 6px; }
+.dark .log-step { color: #999; }
+.log-info { color: #666; }
+.dark .log-info { color: #999; }
+.log-action { color: #000; }
+.dark .log-action { color: #ccc; }
+.log-error { color: #e53935; }
+.dark .log-error { color: #ef5350; }
+.log-done { color: #607CD2; font-weight: 600; }
+.dark .log-done { color: #8ab4f8; }
+.log-status { color: #000; }
+.dark .log-status { color: #ccc; }
+
+/* === Input Area === */
+#inputArea {
+  border-top: 1px solid #e8e8e8; padding: 8px 12px; flex-shrink: 0;
+}
+.dark #inputArea { border-top-color: #333; }
+#inputRow { display: flex; gap: 6px; align-items: flex-start; }
+#instructionInput {
+  flex: 1; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px;
+  font-size: 13px; font-family: inherit; resize: none; outline: none;
+  min-height: 78px; max-height: 120px; line-height: 1.4;
+  box-sizing: border-box; transition: border-color 0.15s;
+}
+#instructionInput:focus { border-color: #607CD2; }
+.dark #instructionInput { background: #2a2a2a; border-color: #444; color: #e0e0e0; }
+.dark #instructionInput:focus { border-color: #607CD2; }
+#instructionInput::placeholder { color: #999; }
+.dark #instructionInput::placeholder { color: #666; }
+
+#btnCol {
+  display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
+}
+#sendBtn {
+  width: 36px; height: 36px; padding: 0; border: none; border-radius: 8px;
+  background: #607CD2; color: #fff; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s;
+}
+#sendBtn:hover { background: #4a63b5; }
+#sendBtn:active { background: #3b51a0; }
+
+#stopBtn {
+  width: 36px; height: 36px; padding: 0; border: none; border-radius: 8px;
+  background: #000; color: #fff; cursor: pointer; display: none;
+  align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s;
+}
+#stopBtn:hover { background: #333; }
+#stopBtn:active { background: #555; }
+
+#pauseBtn {
+  width: 36px; height: 36px; padding: 0; border: none; border-radius: 8px;
+  background: #999; color: #fff; cursor: pointer; display: none;
+  align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s;
+}
+#pauseBtn:hover { background: #888; }
+#pauseBtn:active { background: #777; }
+#pauseBtn.resumed { background: #607CD2; }
+#pauseBtn.resumed:hover { background: #4a63b5; }
+#pauseBtn.resumed:active { background: #3b51a0; }
+
+/* === Status Bar === */
+#statusBar {
+  padding: 4px 12px; text-align: center; font-size: 11px; color: #999;
+  border-top: 1px solid #e8e8e8; flex-shrink: 0;
+}
+.dark #statusBar { border-top-color: #333; color: #666; }
+
+/* === Scrollbar === */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #bbb; }
+.dark ::-webkit-scrollbar-thumb { background: #444; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #555; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h2>浏览器操控</h2>
+  <div id="headerActions">
+    <button class="hdr-btn" id="highlightBtn" title="显示/隐藏识别框">
+      <svg viewBox="0 0 20 20" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M1 10c0 0 3-7 9-7s9 7 9 7-3 7-9 7-9-7-9-7z"/><circle cx="10" cy="10" r="2.5"/></svg>
+    </button>
+    <button class="hdr-btn" id="clearBtn" title="清空日志">
+      <svg viewBox="0 0 20 20" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><polyline points="3 5 5 5 17 5"/><path d="M6 5V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 9v6"/><path d="M12 9v6"/><path d="M4 5l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12"/></svg>
+    </button>
+  </div>
+</div>
+<div id="logArea"></div>
+<div id="inputArea">
+  <div id="inputRow">
+    <textarea id="instructionInput" rows="1" placeholder="输入指令..."></textarea>
+    <div id="btnCol">
+      <button id="sendBtn" title="执行">
+        <svg viewBox="0 0 16 16" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><polygon points="2 2 14 8 2 14 4.5 8 2 2"/></svg>
+      </button>
+      <button id="stopBtn" title="停止">
+        <svg viewBox="0 0 16 16" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>
+      </button>
+      <button id="pauseBtn" title="暂停">
+        <svg id="pauseIcon" viewBox="0 0 16 16" style="width:18px;height:18px;stroke:currentColor;fill:currentColor;stroke-width:0"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg>
+        <svg id="resumeIcon" viewBox="0 0 16 16" style="width:18px;height:18px;stroke:currentColor;fill:currentColor;stroke-width:0;display:none"><polygon points="4,2 14,8 4,14"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+<div id="statusBar">就绪</div>
+
+<script src="browser-panel.js"></script>
+</body>
+</html>

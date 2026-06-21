@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "default_locale": "zh_CN",
+  "name": "__MSG_extensionName__",
+  "version": "1.5.7",
+  "description": "__MSG_extensionDescription__",
+  "homepage_url": "https://hubao.huidezh.dpdns.org/",
+  "author": "HWB",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo3Er14HIjaxH+6kea21OcNoPpFWfnKfU9LgHyIbhPbR4Y6lubHSOZI8qM+DVZvOqzw8A+IEdJYC3fGiiJg/NOUNjYi0fIaZS0SXF7++jOzJXT0vBJjdRKfzA0+CpeBsYD2QEUuyjYqX3bQ0NfWw1hXH+gJpmlI39vOhDAreFZFetqgaV/m/RNSYCnUWO37rAdsTPshlY4krZx+s5oPH3f5HQdm1TgpwhPoAdjhDgq71d+TVH3HOqnHe0HONb4PFu9URCZ6NRVN57qi14lUahNc+VBvr/ufQHYVAZDAwRJyU6Pmx6MNcnJfGf+iesKQW2K6EFp73XzdyR18hAwbtU1wIDAQAB",
+  "action": {
+    "default_title": "呼叫虎宝"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "browser/browser-panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "match_about_blank": true,
+      "css": ["content/chat.css"],
+      "js": [
+        "content/shared.js",
+        "content/site-registry.js",
+        "content/optimizers/bilibili.js",
+        "content/optimizers/outlook.js",
+        "content/optimizers/outlook-live.js",
+        "lib/marked.min.js",
+        "content/pet-animator.js",
+        "content/chat.js",
+        "content/outlook-reply.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "activeTab", "scripting", "clipboardWrite", "contextMenus", "debugger", "sidePanel", "webNavigation"],
+  "host_permissions": ["<all_urls>", "file:///*"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/hupilot.png", "icons/hupilot-1.png", "icons/hupilot-2.png", "icons/hupilot-3.png", "icons/hupilot-4.png", "icons/icon48.png", "icons/icon48-2.png", "icons/icon128.png", "icons/hupilot-small.png", "icons/pet-sprite.png", "icons/pet-sprite-left.png", "icons/eat-meat-sprite.png", "icons/pet-headpat-sprite.png", "icons/rou.png", "lib/pdf.min.mjs", "lib/pdf.worker.min.mjs"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
