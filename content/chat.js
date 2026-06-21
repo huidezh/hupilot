@@ -30,6 +30,7 @@
   // Page translation state (cached from injected PageTranslator)
   var ptState = 'idle'; // idle | translating | translated
   var ptProgress = { done: 0, total: 0 };
+  var ptHasCache = false;
   var ptStatusEl = null;
 
   function init() {
@@ -379,6 +380,31 @@ sidebar.innerHTML =
             '</div>' +
             '<div class="ai-chat-settings-row">' +
               '<label><input type="checkbox" id="ai-chat-settings-exp-page-translate"> AI网页翻译功能是否开启</label>' +
+            '</div>' +
+            '<div class="ai-chat-settings-row" id="ai-chat-settings-bilingual-row" style="display:none">' +
+              '<label><input type="checkbox" id="ai-chat-settings-page-bilingual"> 双语显示（原文+译文）</label>' +
+            '</div>' +
+            '<div class="ai-chat-settings-row" id="ai-chat-settings-bilingual-style-row" style="display:none">' +
+              '<label>译文样式</label>' +
+              '<select id="ai-chat-settings-bilingual-style">' +
+                '<option value="stacked">译文下方无装饰</option>' +
+                '<option value="underline">下划线</option>' +
+                '<option value="nativeUnderline">原生下划线</option>' +
+                '<option value="dashed">虚线边框</option>' +
+                '<option value="dotted">点状边框</option>' +
+                '<option value="highlight">高亮背景</option>' +
+                '<option value="marker">马克笔标记</option>' +
+                '<option value="grey">灰色文本</option>' +
+                '<option value="weakening">弱化</option>' +
+                '<option value="bold">粗体</option>' +
+                '<option value="italic">斜体</option>' +
+                '<option value="blockquote">引用线</option>' +
+                '<option value="paper">纸张阴影</option>' +
+                '<option value="background">背景色</option>' +
+                '<option value="dashedBorder">虚线红色边框</option>' +
+                '<option value="solidBorder">实线边框</option>' +
+                '<option value="dividingLine">分隔线</option>' +
+              '</select>' +
             '</div>' +
           '</div>' +
           '<div class="ai-chat-settings-section">' +
@@ -1474,8 +1500,10 @@ sidebar.innerHTML =
         editModeItem = '<div class="menu-item menu-item-danger" data-action="edit-mode">' + (isOn ? '退出编辑' : '编辑模式') + '</div>';
       }
       var translateItem = '';
+      var forceRetranslateItem = '';
       if (expPageTranslationEnabled) {
         translateItem = '<div class="menu-item" data-action="translate-page">' + (ptState === 'translated' ? '还原原文' : '翻译网页') + '</div>';
+        if (ptState === 'translated' || ptHasCache) forceRetranslateItem = '<div class="menu-item" data-action="translate-force">强制重翻</div>';
       }
       var browserItem = '';
       var captureItem = '';
@@ -1491,6 +1519,7 @@ sidebar.innerHTML =
         '<div class="menu-item" data-action="unlock">解除限制</div>' +
         '<div class="menu-item" data-action="save-page">提取网页</div>' +
         translateItem +
+        forceRetranslateItem +
         browserItem +
         captureItem +
         editModeItem +
@@ -1596,6 +1625,8 @@ sidebar.innerHTML =
         if (typeof enableCopyBypass === 'function' && confirm('是否需要解除网站对右键及复制的限制？如不需要，请点取消。')) { enableCopyBypass(); showToast('已解除网站对右键及复制的限制。如需撤销，请刷新网页。'); }
       } else if (action === 'translate-page') {
         togglePageTranslation();
+      } else if (action === 'translate-force') {
+        doTranslate(true);
       } else if (action === 'browser-control') {
         chrome.runtime.sendMessage({ type: 'openBrowserPanel' });
       } else if (action === 'capture-page') {
@@ -2852,6 +2883,32 @@ sidebar.innerHTML =
       // Experimental
       document.getElementById('ai-chat-settings-exp-web-edit').checked = s.experimentalWebEdit === true;
       document.getElementById('ai-chat-settings-exp-page-translate').checked = s.pageTranslation === true;
+      var bilingualRow = document.getElementById('ai-chat-settings-bilingual-row');
+      if (bilingualRow) bilingualRow.style.display = s.pageTranslation ? '' : 'none';
+      document.getElementById('ai-chat-settings-page-bilingual').checked = s.pageTranslateBilingual === true;
+      var bilingualStyleRow = document.getElementById('ai-chat-settings-bilingual-style-row');
+      if (bilingualStyleRow) bilingualStyleRow.style.display = s.pageTranslation && s.pageTranslateBilingual ? '' : 'none';
+      document.getElementById('ai-chat-settings-bilingual-style').value = s.pageTranslateBilingualStyle || 'stacked';
+      // 翻译功能开关变化时显示/隐藏双语选项
+      var ptCb = document.getElementById('ai-chat-settings-exp-page-translate');
+      if (ptCb && !ptCb._bilingualListener) {
+        ptCb._bilingualListener = true;
+        ptCb.addEventListener('change', function() {
+          var bilingualRow = document.getElementById('ai-chat-settings-bilingual-row');
+          if (bilingualRow) bilingualRow.style.display = this.checked ? '' : 'none';
+          var bilingualStyleRow = document.getElementById('ai-chat-settings-bilingual-style-row');
+          if (bilingualStyleRow) bilingualStyleRow.style.display = this.checked && document.getElementById('ai-chat-settings-page-bilingual').checked ? '' : 'none';
+        });
+      }
+      // 双语开关变化时显示/隐藏样式选择
+      var bilingualCb = document.getElementById('ai-chat-settings-page-bilingual');
+      if (bilingualCb && !bilingualCb._styleListener) {
+        bilingualCb._styleListener = true;
+        bilingualCb.addEventListener('change', function() {
+          var bilingualStyleRow = document.getElementById('ai-chat-settings-bilingual-style-row');
+          if (bilingualStyleRow) bilingualStyleRow.style.display = this.checked ? '' : 'none';
+        });
+      }
       // Confirm dialog when turning on experimental web edit
       if (!document.getElementById('ai-chat-settings-exp-web-edit')._listenerAttached) {
         document.getElementById('ai-chat-settings-exp-web-edit')._listenerAttached = true;
@@ -3061,6 +3118,8 @@ sidebar.innerHTML =
     var transBtn = document.getElementById('ai-chat-translate-btn');
     if (transBtn) transBtn.style.display = expPageTranslationEnabled ? '' : 'none';
     if (!expPageTranslationEnabled && ptState !== 'idle') restorePageText();
+    s.pageTranslateBilingual = document.getElementById('ai-chat-settings-page-bilingual').checked;
+    s.pageTranslateBilingualStyle = document.getElementById('ai-chat-settings-bilingual-style').value;
     s.pageContentMaxChars = parseInt(document.getElementById('ai-chat-settings-content-limit').value, 10) || 100000;
     s.outlookSystemPrompt = document.getElementById('ai-chat-settings-outlook-prompt').value.trim();
     s.outlookUserInfo = document.getElementById('ai-chat-settings-outlook-userinfo').value.trim();
@@ -4204,6 +4263,11 @@ var text = (function() {
         } else if (settings.systemPrompt) {
           systemParts.push(settings.systemPrompt);
         }
+        if (systemParts.length === 0) {
+          systemParts.push('你的名字叫虎宝，你是一只可爱的小老虎');
+        }
+        var _d = new Date();
+        systemParts.push('当前日期是' + _d.getFullYear() + '年' + (_d.getMonth() + 1) + '月' + _d.getDate() + '日。');
         var pageContent = freshContent || pageContentCache || '';
         if (!webQaMode && pageContent && (session.messages.length === 1 || pendingPageInject)) {
           pendingPageInject = false;
@@ -4221,16 +4285,15 @@ var maxChars = settings.pageContentMaxChars || 100000;
         }
         if (systemParts.length > 0) {
           var systemText = systemParts.join('\n\n');
-          // 非 webQA 模式启用搜索时修改 system prompt（去掉"简洁"，追加日期）
+          // 非 webQA 模式启用搜索时追加搜索指令
           if (!webQaMode && session.webSearchEnabled) {
             systemText = systemText.replace('不要长篇大论', '不要只做简短总结').replace('请简洁准确地回答', '请给出详细完整的回答，包含具体信息、数据、来源等细节');
-            var now = new Date();
-            systemText += '\n\n当前日期是' + now.getFullYear() + '年' + (now.getMonth() + 1) + '月' + now.getDate() + '日。请在搜索关键词中使用正确的当前年份。';
+            systemText += '\n\n请在搜索关键词中使用正确的日期。';
+          }
+          if (session.webSearchEnabled && searchProvider === 'baidu-standard') {
+            systemText += '\n\n当使用搜索工具时：搜索结果是参考资料，不代表最终回答。你需要仔细阅读搜索结果，提炼关键信息，用你自己的语言给出完整的、结构化的推荐回答，列举具体品牌型号和特点。不要只说"以上是搜索结果"或类似的简短总结。';
           }
           apiMessages.push({ role: 'system', content: systemText });
-        }
-        if (session.webSearchEnabled && searchProvider === 'baidu-standard') {
-          apiMessages.push({ role: 'system', content: '当使用搜索工具时：搜索结果是参考资料，不代表最终回答。你需要仔细阅读搜索结果，提炼关键信息，用你自己的语言给出完整的、结构化的推荐回答，列举具体品牌型号和特点。不要只说"以上是搜索结果"或类似的简短总结。' });
         }
 
         var historyMsgs = session.messages.slice(session.contextStartIndex || 0, -1);
@@ -4796,8 +4859,16 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
     }
   }
 
-  function doTranslate() {
+  function doTranslate(force) {
     if (!window.PageTranslator) return;
+    if (force && window.PageTranslator.getState() === 'translated') {
+      window.PageTranslator.restore();
+      ptHasCache = false;
+      ptState = 'idle';
+      ptProgress = { done: 0, total: 0 };
+      updatePtBtn();
+      hidePtStatus();
+    }
     updatePtStatus('准备翻译...', 'translating');
     window.PageTranslator.translateAll(null, {
       progress: function(done, total) {
@@ -4808,6 +4879,7 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
       },
       done: function(result) {
         ptState = 'translated';
+        ptHasCache = true;
         updatePtBtn();
         if (result.failed > 0) {
           updatePtStatus('翻译完成，' + result.failed + ' 批失败', 'error');
@@ -4828,12 +4900,13 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
         }
         hidePtStatus();
       }
-    });
+    }, force);
   }
 
   function restorePageText() {
     if (window.PageTranslator) window.PageTranslator.restore();
     ptState = 'idle';
+    ptHasCache = false;
     ptProgress = { done: 0, total: 0 };
     updatePtBtn();
     hidePtStatus();

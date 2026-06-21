@@ -5,26 +5,165 @@
   var blocks = [];
   var savedNodes = [];
   var progress = { done: 0, total: 0 };
+  var BILINGUAL_CLASS = 'hupilot-bilingual-trans';
+  var isBilingual = false;
+  var transStyle = 'stacked';
+  var styleInjected = false;
+  var translationCache = {};
 
-  function extractPageBlocks() {
+  function getStyle(el) {
+    if (!el) return null;
+    return el._cachedStyle || (el._cachedStyle = (function(e) { try { return window.getComputedStyle(e); } catch(ex) { return null; } })(el));
+  }
+
+  function cacheElementStyles(root) {
+    var sw = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, { acceptNode: function(n) { return NodeFilter.FILTER_ACCEPT; } });
+    var el;
+    while (el = sw.nextNode()) {
+      try { el._cachedStyle = window.getComputedStyle(el); } catch(e) {}
+    }
+  }
+
+  function injectBilingualStyle(styleName) {
+    if (document.getElementById('hupilot-bilingual-style')) return;
+    var css = getBilingualCSS(styleName);
+    var style = document.createElement('style');
+    style.id = 'hupilot-bilingual-style';
+    style.textContent = css;
+    document.head.appendChild(style);
+    injectStyleIntoShadowRoots(document.body, css);
+  }
+
+  function getBilingualCSS(styleName) {
+    var cssMap = {
+      stacked: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0}',
+      underline: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border-bottom:1px solid #72ece9;padding-bottom:2px}',
+      nativeUnderline: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;text-decoration:underline}',
+      dashed: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border:1px dashed #59c1bd;padding:2px 4px;border-radius:3px}',
+      dotted: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border:1px dotted #888;padding:2px 4px;border-radius:3px}',
+      highlight: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;background:#ffff00;padding:2px 4px;border-radius:3px}',
+      marker: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;background:linear-gradient(180deg,transparent 50%,#ffff0066 50%);padding:2px 4px}',
+      grey: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;color:#2f4f4f}',
+      weakening: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;opacity:0.6}',
+      bold: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;font-weight:bold}',
+      italic: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;font-style:italic}',
+      blockquote: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border-left:3px solid #cc3355;padding-left:8px}',
+      paper: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;box-shadow:0 1px 3px rgba(0,0,0,0.2);padding:4px 6px;border-radius:3px}',
+      background: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;background:#dbafaf33;padding:2px 4px;border-radius:3px}',
+      dashedBorder: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border:1px dashed #cc3355;padding:2px 4px;border-radius:3px}',
+      solidBorder: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border:1px solid #888;padding:2px 4px;border-radius:3px}',
+      dividingLine: '.' + BILINGUAL_CLASS + '{display:block;margin:4px 0;border-top:1px solid #ccc;padding-top:4px}'
+    };
+    return cssMap[styleName] || cssMap.stacked;
+  }
+
+  function injectStyleIntoShadowRoots(root, css) {
+    var sw = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function(n) { return n.shadowRoot && n.shadowRoot.mode === 'open' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+    });
+    var el;
+    while (el = sw.nextNode()) {
+      if (!el.shadowRoot.getElementById('hupilot-bilingual-style')) {
+        var s = el.shadowRoot.createElement('style');
+        s.id = 'hupilot-bilingual-style';
+        s.textContent = css;
+        el.shadowRoot.appendChild(s);
+      }
+      injectStyleIntoShadowRoots(el.shadowRoot, css);
+    }
+  }
+
+  function removeBilingualElements() {
+    removeBilingualFrom(document.body);
+    styleInjected = false;
+  }
+
+  function removeBilingualFrom(root) {
+    var els = root.querySelectorAll('.' + BILINGUAL_CLASS);
+    for (var i = els.length - 1; i >= 0; i--) els[i].remove();
+    var styleEls = root.querySelectorAll('style[id="hupilot-bilingual-style"]');
+    for (var i = styleEls.length - 1; i >= 0; i--) styleEls[i].remove();
+    var sw = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function(n) { return n.shadowRoot && n.shadowRoot.mode === 'open' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+    });
+    var el;
+    while (el = sw.nextNode()) removeBilingualFrom(el.shadowRoot);
+  }
+
+  function getBlockAncestor(el) {
+    var current = el;
+    for (var i = 0; i < 10; i++) {
+      if (!current || current === document.documentElement) break;
+      var st = getStyle(current);
+      if (st) {
+        var d = st.display;
+        if (d === 'block' || d === 'flex' || d === 'grid' || d === 'table' || d === 'flow-root' || d === 'list-item') {
+          return current;
+        }
+      }
+      current = current.parentElement;
+    }
+    return el.parentElement;
+  }
+
+  function isAdjacentBlocks(a, b) {
+    var pa = a.parentElement;
+    var pb = b.parentElement;
+    if (pa === pb) {
+      var s = a.nextSibling;
+      while (s && s !== b) {
+        if (s.nodeType === 1) {
+          if (s.tagName === 'BR') { s = s.nextSibling; continue; }
+          var st = getStyle(s);
+          if (!st) return false;
+          if (['inline','inline-block','inline-flex','inline-grid','inline-table','ruby'].indexOf(st.display) < 0) return false;
+        }
+        s = s.nextSibling;
+      }
+      return s === b;
+    }
+    var container = getBlockAncestor(pa);
+    if (!container || container !== getBlockAncestor(pb)) return false;
+    function containerChild(el) {
+      while (el && el.parentElement && el.parentElement !== container) el = el.parentElement;
+      return el;
+    }
+    var ca = containerChild(a);
+    var cb = containerChild(b);
+    if (!ca || !cb || ca === cb) return !!ca;
+    var s = ca.nextSibling;
+    while (s && s !== cb) {
+      if (s.nodeType === 1) {
+        var st = getStyle(s);
+        if (!st) return false;
+        if (['inline','inline-block','inline-flex','inline-grid','inline-table','ruby'].indexOf(st.display) < 0) return false;
+      }
+      s = s.nextSibling;
+    }
+    return s === cb;
+  }
+
+  function extractPageBlocks(root) {
+    root = root || document.body;
+    cacheElementStyles(root);
     var blocks = [];
+    var blocksMap = new Map();
     var walker = document.createTreeWalker(
-      document.body,
+      root,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode: function(node) {
           var parent = node.parentElement;
           if (!parent) return NodeFilter.FILTER_REJECT;
           var tag = parent.tagName;
-          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'SVG' || tag === 'CODE' || tag === 'PRE')
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'SVG' || tag === 'CODE')
             return NodeFilter.FILTER_REJECT;
           var text = node.textContent;
           if (!text.trim()) return NodeFilter.FILTER_REJECT;
-          var style;
-          try { style = window.getComputedStyle(parent); } catch(e) { return NodeFilter.FILTER_REJECT; }
-          if (style.display === 'none' || style.visibility === 'hidden')
+          var style = getStyle(parent);
+          if (!style || style.display === 'none' || style.visibility === 'hidden')
             return NodeFilter.FILTER_REJECT;
-          if (parent.closest('#ai-chat-sidebar'))
+          if (root === document.body && parent.closest('#ai-chat-sidebar'))
             return NodeFilter.FILTER_REJECT;
           if (text.trim().replace(/[\d\s.,!?;:+\-*/%=()\[\]{}<>@#$^&|~`'\u3000-\u303f\uff00-\uffef\u2026\u2014\u00b7\u2018\u2019\u201c\u201d\u3000\u3001\u3002\uff01\uff0c\uff1b\uff1a\uff08\uff09\u300a\u300b\u300c\u300d\u300e\u300f\u3010\u3011\u25aa\u25ab\u25cf\u25cb]+/g, '').length === 0)
             return NodeFilter.FILTER_REJECT;
@@ -36,74 +175,130 @@
     var n;
     while (n = walker.nextNode()) {
       var parent = n.parentElement;
-      if (blocks.length > 0) {
-        var last = blocks[blocks.length - 1];
-        if (last.parent === parent && last.lastNode.nextSibling === n) {
-          last.text += n.textContent;
-          last.lastNode = n;
-          last.nodes.push(n);
-          continue;
-        }
-        if (last.parent === parent) {
-          var onlyInline = true;
-          var s = last.lastNode.nextSibling;
-          while (s && s !== n) {
-            if (s.nodeType === 1) {
-              var t = s.tagName;
-              if (t === 'BR') { s = s.nextSibling; continue; }
-              if (['B','I','U','S','STRONG','EM','SPAN','A','SMALL','SUB','SUP','ABBR','ACRONYM','CITE','CODE','DEL','INS','MARK','Q','TIME','WBR','FONT','BDO','BDI','TT','VAR','KBD','SAMP','NOBR'].indexOf(t) < 0) {
-                onlyInline = false; break;
-              }
-            }
-            s = s.nextSibling;
-          }
-          if (onlyInline && s === n) {
-            last.text += n.textContent;
-            last.lastNode = n;
-            last.nodes.push(n);
-            continue;
-          }
-        }
+      var container = getBlockAncestor(parent);
+      var existing = blocksMap.get(container);
+      if (existing && isAdjacentBlocks(existing.lastNode, n)) {
+        existing.text += n.textContent;
+        existing.lastNode = n;
+        existing.nodes.push(n);
+      } else {
+        var block = { nodes: [n], text: n.textContent, lastNode: n };
+        blocks.push(block);
+        blocksMap.set(container, block);
       }
-      blocks.push({ parent: parent, nodes: [n], text: n.textContent, lastNode: n });
+    }
+
+    var sw = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function(n) { return n.shadowRoot && n.shadowRoot.mode === 'open' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+    });
+    var el;
+    while (el = sw.nextNode()) {
+      blocks = blocks.concat(extractPageBlocks(el.shadowRoot));
     }
     return blocks;
   }
 
+  function isInlineParent(el) {
+    if (!el) return false;
+    var st = getStyle(el);
+    if (!st) return false;
+    return ['inline','inline-block','inline-flex','inline-grid'].indexOf(st.display) >= 0;
+  }
+
   function translateOneBatch(batchBlocks, targetLang, settings) {
     var texts = batchBlocks.map(function(b) { return b.text; });
-    var escaped = texts.map(function(t) {
-      return t.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\t/g, '\\t').replace(/\r/g, '\\r');
+    var allCached = true;
+    var cachedTranslations = [];
+    var uncachedBlocks = [];
+    var uncachedIndices = [];
+    texts.forEach(function(t, idx) {
+      if (translationCache[t] !== undefined) {
+        cachedTranslations[idx] = translationCache[t];
+      } else {
+        allCached = false;
+        cachedTranslations[idx] = undefined;
+        uncachedBlocks.push(batchBlocks[idx]);
+        uncachedIndices.push(idx);
+      }
     });
-    var prompt = 'Translate the following segments to ' + targetLang + '. Preserve all numbers, special characters, and whitespace exactly. Return ONLY a valid JSON array of translated strings, one per input segment.\n\nInput segments:\n' + escaped.map(function(t, i) { return (i + 1) + '. "' + t + '"'; }).join('\n') + '\n\nOutput:';
+    if (allCached && uncachedBlocks.length === 0) {
+      batchBlocks.forEach(function(block, idx) {
+        applyTranslation(block, cachedTranslations[idx]);
+      });
+      return Promise.resolve(batchBlocks.length);
+    }
+    if (uncachedBlocks.length === 0) {
+      batchBlocks.forEach(function(block, idx) {
+        applyTranslation(block, cachedTranslations[idx]);
+      });
+      return Promise.resolve(batchBlocks.length);
+    }
+    var combinedText = uncachedBlocks.map(function(b) { return b.text; }).join('\n\n');
+    var prompt = 'Translate the text to ' + targetLang + ', please do not explain any sentences, just translate or leave them as they are.\n\n' + combinedText;
     var messages = [
-      { role: 'system', content: 'You are a translator. Respond only with valid JSON.' },
+      { role: 'system', content: 'You are a translation engine, you can only translate text and cannot interpret it, and do not explain.' },
       { role: 'user', content: prompt }
     ];
     return callAI(settings, messages, null, null).then(function(result) {
       if (!result) throw new Error('Empty response');
-      var json;
-      var m = result.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-      if (m) { json = m[1]; }
-      else { m = result.match(/\[[\s\S]*\]/); if (m) json = m[0]; }
-      if (!json) throw new Error('Could not parse translation result');
-      var translations = JSON.parse(json);
-      batchBlocks.forEach(function(block, idx) {
+      var translations = result.trim().split('\n\n');
+      uncachedBlocks.forEach(function(block, idx) {
         var trans = translations[idx];
+        var origIdx = uncachedIndices[idx];
         if (trans && typeof trans === 'string') {
-          block.nodes.forEach(function(node, ni) {
-            if (ni === 0) node.textContent = trans;
-            else node.textContent = '';
-          });
+          trans = trans.trim();
+          translationCache[block.text] = trans;
+          cachedTranslations[origIdx] = trans;
+        }
+      });
+      batchBlocks.forEach(function(block, idx) {
+        if (cachedTranslations[idx] !== undefined) {
+          applyTranslation(block, cachedTranslations[idx]);
         }
       });
       return batchBlocks.length;
     });
   }
 
-  function translateAll(targetLang, callbacks) {
+  function applyTranslation(block, trans) {
+    if (trans && typeof trans === 'string') {
+      if (isBilingual) {
+        var lastNode = block.nodes[block.nodes.length - 1];
+        if (!lastNode.parentNode) return;
+        var transEl = document.createElement('span');
+        transEl.className = BILINGUAL_CLASS;
+        transEl.textContent = trans;
+        if (isInlineParent(lastNode.parentNode)) {
+          transEl.style.display = 'inline';
+          transEl.style.margin = '0 0 0 4px';
+        }
+        if (lastNode.nextSibling) {
+          lastNode.parentNode.insertBefore(transEl, lastNode.nextSibling);
+        } else {
+          lastNode.parentNode.appendChild(transEl);
+        }
+      } else {
+        block.nodes.forEach(function(node, ni) {
+          if (ni === 0) node.textContent = trans;
+          else node.textContent = '';
+        });
+      }
+    }
+  }
+
+  function translateAll(targetLang, callbacks, force) {
     return readAISettings().then(function(settings) {
       var targetLangFinal = targetLang || settings.translateLanguage || '中文';
+      isBilingual = settings.pageTranslateBilingual === true;
+      transStyle = settings.pageTranslateBilingualStyle || 'stacked';
+
+      if (force) translationCache = {};
+
+      if (isBilingual && !styleInjected) {
+        injectBilingualStyle(transStyle);
+        styleInjected = true;
+      }
+
       var batchSize = 25;
       var concurrency = 2;
       var MAX_RETRIES = 2;
@@ -173,6 +368,9 @@
   }
 
   function restore() {
+    if (isBilingual) {
+      removeBilingualElements();
+    }
     savedNodes.forEach(function(item) {
       item.node.textContent = item.original;
     });
@@ -180,6 +378,7 @@
     blocks = [];
     savedNodes = [];
     progress = { done: 0, total: 0 };
+    isBilingual = false;
   }
 
   window.PageTranslator = {

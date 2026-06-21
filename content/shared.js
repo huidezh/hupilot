@@ -12,7 +12,7 @@ var AI_MODEL_CUSTOM = '__custom__';
 var AI_DEFAULT_SETTINGS = {
   provider: 'sensenova',
   baseUrl: 'https://token.sensenova.cn/v1',
-  model: 'deepseek-v4-flash',
+  model: 'sensenova-6.7-flash-lite',
   apiKey: '',
   systemPrompt: '你的名字叫虎宝，你是一只可爱的小老虎',
   maxHistoryRounds: 8,
