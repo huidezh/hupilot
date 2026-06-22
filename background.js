@@ -226,17 +226,66 @@ chrome.runtime.onConnect.addListener(function(port) {
 
 // AI 代理 + 扩展图标点击转发
 
+var CHAT_CSS = 'content/chat.css';
+var CHAT_SCRIPTS = [
+  'content/shared.js',
+  'content/site-registry.js',
+  'content/optimizers/bilibili.js',
+  'content/optimizers/youtube.js',
+  'content/optimizers/outlook.js',
+  'content/optimizers/outlook-live.js',
+  'lib/marked.min.js',
+  'content/pet-animator.js',
+  'content/chat.js',
+  'content/outlook-reply.js'
+];
+
+function injectChatScripts(tabId) {
+  return chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: function() { return !!document.getElementById('ai-chat-sidebar'); }
+  }).then(function(r) {
+    if (r && r[0] && r[0].result) return false;
+    return chrome.scripting.insertCSS({
+      target: { tabId: tabId },
+      files: [CHAT_CSS]
+    }).catch(function() {}).then(function() {
+      return CHAT_SCRIPTS.reduce(function(p, f) {
+        return p.then(function() {
+          return chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: [f]
+          }).catch(function() {});
+        });
+      }, Promise.resolve());
+    }).then(function() { return true; });
+  });
+}
+
 chrome.action.onClicked.addListener(function(tab) {
+  var url = tab.url || '';
+  // chrome:// edge:// 等受限页面无法注入 content script，弹独立窗口（about:blank 除外，用于 Outlook 弹窗等）
+  if (/^(chrome|edge):\/\//.test(url) || (url.indexOf('about:') === 0 && url.indexOf('about:blank') !== 0)) {
+    chrome.windows.create({
+      url: chrome.runtime.getURL('standalone/chat.html'),
+      type: 'popup',
+      width: 440,
+      height: 640
+    }).catch(function() {});
+    return;
+  }
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: ['lib/defuddle.js']
   }).catch(function() {});
-  chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: function() {
-      document.dispatchEvent(new CustomEvent('aiChatToggle'));
-    }
-  }).catch(function() {});
+  injectChatScripts(tab.id).then(function() {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: function() {
+        document.dispatchEvent(new CustomEvent('aiChatToggle'));
+      }
+    }).catch(function() {});
+  });
 });
 
 function updateTranslateMenuVisibility() {
@@ -286,6 +335,17 @@ chrome.storage.onChanged.addListener(function(changes, area) {
 chrome.contextMenus.onClicked.addListener(function(info, tab) {
   if (info.menuItemId === 'aiChatToggle') {
     var tabId = tab.id;
+    var url = tab.url || '';
+    // 受限页面：弹独立窗口（about:blank 除外）
+    if (/^(chrome|edge):\/\//.test(url) || (url.indexOf('about:') === 0 && url.indexOf('about:blank') !== 0)) {
+      chrome.windows.create({
+        url: chrome.runtime.getURL('standalone/chat.html'),
+        type: 'popup',
+        width: 440,
+        height: 640
+      }).catch(function() {});
+      return;
+    }
     chrome.scripting.executeScript({
       target: { tabId: tabId },
       func: function() {
@@ -297,17 +357,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
       }
     }).then(function(r) {
       if (r && r[0] && r[0].result) return;
-      chrome.scripting.insertCSS({
-        target: { tabId: tabId },
-        files: ['content/chat.css']
-      }).catch(function() {});
-      var jsFiles = ['content/shared.js', 'content/site-registry.js', 'content/browser-tools.js', 'content/optimizers/outlook.js', 'lib/marked.min.js', 'content/chat.js'];
-      return Promise.all(jsFiles.map(function(f) {
-        return chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: [f]
-        }).catch(function() {});
-      })).then(function() {
+      return injectChatScripts(tabId).then(function() {
         chrome.scripting.executeScript({
           target: { tabId: tabId },
           func: function() {
@@ -318,6 +368,16 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
     }).catch(function() {});
   } else if (info.menuItemId === 'openSettings') {
     var tabId = tab.id;
+    var url = tab.url || '';
+    if (/^(chrome|edge):\/\//.test(url) || (url.indexOf('about:') === 0 && url.indexOf('about:blank') !== 0)) {
+      chrome.windows.create({
+        url: chrome.runtime.getURL('standalone/chat.html'),
+        type: 'popup',
+        width: 440,
+        height: 640
+      }).catch(function() {});
+      return;
+    }
     chrome.scripting.executeScript({
       target: { tabId: tabId },
       func: function() {
@@ -329,17 +389,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
       }
     }).then(function(r) {
       if (r && r[0] && r[0].result) return;
-      chrome.scripting.insertCSS({
-        target: { tabId: tabId },
-        files: ['content/chat.css']
-      }).catch(function() {});
-      var jsFiles = ['content/shared.js', 'content/site-registry.js', 'content/browser-tools.js', 'content/optimizers/outlook.js', 'lib/marked.min.js', 'content/chat.js'];
-      return Promise.all(jsFiles.map(function(f) {
-        return chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: [f]
-        }).catch(function() {});
-      })).then(function() {
+      injectChatScripts(tabId).then(function() {
         chrome.scripting.executeScript({
           target: { tabId: tabId },
           func: function() {

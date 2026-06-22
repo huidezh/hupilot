@@ -387,23 +387,13 @@ sidebar.innerHTML =
             '<div class="ai-chat-settings-row" id="ai-chat-settings-bilingual-style-row" style="display:none">' +
               '<label>译文样式</label>' +
               '<select id="ai-chat-settings-bilingual-style">' +
-                '<option value="stacked">译文下方无装饰</option>' +
-                '<option value="underline">下划线</option>' +
-                '<option value="nativeUnderline">原生下划线</option>' +
-                '<option value="dashed">虚线边框</option>' +
-                '<option value="dotted">点状边框</option>' +
-                '<option value="highlight">高亮背景</option>' +
-                '<option value="marker">马克笔标记</option>' +
-                '<option value="grey">灰色文本</option>' +
-                '<option value="weakening">弱化</option>' +
-                '<option value="bold">粗体</option>' +
-                '<option value="italic">斜体</option>' +
+'<option value="default">默认无装饰</option>' +
                 '<option value="blockquote">引用线</option>' +
-                '<option value="paper">纸张阴影</option>' +
-                '<option value="background">背景色</option>' +
-                '<option value="dashedBorder">虚线红色边框</option>' +
-                '<option value="solidBorder">实线边框</option>' +
-                '<option value="dividingLine">分隔线</option>' +
+                '<option value="weakened">灰色弱化</option>' +
+                '<option value="dashedLine">虚线下划线</option>' +
+                '<option value="border">边框圆角</option>' +
+                '<option value="textColor">紫色文字</option>' +
+                '<option value="background">半透明背景</option>' +
               '</select>' +
             '</div>' +
           '</div>' +
@@ -2750,7 +2740,20 @@ sidebar.innerHTML =
     document.querySelectorAll('.ai-chat-reset-prompt').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var target = document.getElementById(this.dataset.target);
-        if (target) target.value = this.dataset.default;
+        if (target) {
+          target.value = this.dataset.default;
+          // Immediately sync localStorage so bubble text takes effect without saving
+          var id = target.id;
+          if (id === 'ai-chat-settings-deskpet-texts') {
+            var lines = target.value.split('\n').filter(Boolean);
+            if (lines.length > 0) localStorage.setItem('hupilot_tc', JSON.stringify(lines));
+            else localStorage.removeItem('hupilot_tc');
+          } else if (id === 'ai-chat-settings-sleep-texts') {
+            var lines = target.value.split('\n').filter(Boolean);
+            if (lines.length > 0) localStorage.setItem('hupilot_stc', JSON.stringify(lines));
+            else localStorage.removeItem('hupilot_stc');
+          }
+        }
       });
     });
   }
@@ -2888,7 +2891,7 @@ sidebar.innerHTML =
       document.getElementById('ai-chat-settings-page-bilingual').checked = s.pageTranslateBilingual === true;
       var bilingualStyleRow = document.getElementById('ai-chat-settings-bilingual-style-row');
       if (bilingualStyleRow) bilingualStyleRow.style.display = s.pageTranslation && s.pageTranslateBilingual ? '' : 'none';
-      document.getElementById('ai-chat-settings-bilingual-style').value = s.pageTranslateBilingualStyle || 'stacked';
+      document.getElementById('ai-chat-settings-bilingual-style').value = s.pageTranslateBilingualStyle || 'background';
       // 翻译功能开关变化时显示/隐藏双语选项
       var ptCb = document.getElementById('ai-chat-settings-exp-page-translate');
       if (ptCb && !ptCb._bilingualListener) {
@@ -2907,6 +2910,12 @@ sidebar.innerHTML =
         bilingualCb.addEventListener('change', function() {
           var bilingualStyleRow = document.getElementById('ai-chat-settings-bilingual-style-row');
           if (bilingualStyleRow) bilingualStyleRow.style.display = this.checked ? '' : 'none';
+          if (!this.checked && ptState === 'translated') restorePageText();
+          chrome.storage.local.get('aiSettings', function(r) {
+            var s = r.aiSettings || {};
+            s.pageTranslateBilingual = bilingualCb.checked;
+            chrome.storage.local.set({ aiSettings: s });
+          });
         });
       }
       // Confirm dialog when turning on experimental web edit
@@ -3442,6 +3451,8 @@ sidebar.innerHTML =
   function injectTTSScript() {
     if (ttsInjected) return;
     ttsInjected = true;
+    // chrome-extension:// 页面无法注入 MAIN-world 脚本，跳过
+    if (location.protocol === 'chrome-extension:') return;
     chrome.runtime.sendMessage({ type: 'injectTTS' }, function(res) {
       if (res && res.error) console.warn('[TTS] Inject failed:', res.error);
     });
@@ -4773,30 +4784,32 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
     if (ptStatusEl) return;
     ptStatusEl = document.createElement('div');
     ptStatusEl.id = 'ai-chat-pt-status';
+    ptStatusEl.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;font:14px/1.5 sans-serif;padding:8px 14px;border-radius:8px;background:#607CD2;color:#fff;align-items:center;gap:6px;box-shadow:0 2px 12px rgba(0,0,0,0.2);transition:opacity 0.3s';
     ptStatusEl.innerHTML = '<span class="ai-chat-pt-status-icon"></span><span class="ai-chat-pt-status-text"></span>';
     document.body.appendChild(ptStatusEl);
+  }
+
+  function showPtStatus() {
+    if (ptStatusEl) ptStatusEl.style.display = 'flex';
+  }
+
+  function hidePtStatus() {
+    if (ptStatusEl) ptStatusEl.style.display = 'none';
+  }
+
+  function ptStatusIconHtml(type) {
+    if (type === 'translating') return '翻译中';
+    if (type === 'success') return '<svg viewBox="0 0 20 20" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="4 10 8 14 16 6"/></svg>';
+    if (type === 'error') return '<svg viewBox="0 0 20 20" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><line x1="6" y1="6" x2="14" y2="14"/><line x1="14" y1="6" x2="6" y2="14"/></svg>';
+    return '<svg viewBox="0 0 20 20" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><circle cx="11" cy="11" r="8.5"/><path d="M3 11h16"/><path d="M11 2.5A12.5 12.5 0 0 1 14 11a12.5 12.5 0 0 1-3 8.5"/><path d="M11 2.5A12.5 12.5 0 0 0 8 11a12.5 12.5 0 0 0 3 8.5"/></svg>';
   }
 
   function updatePtStatus(text, type) {
     createPtStatusEl();
     if (!ptStatusEl) return;
+    showPtStatus();
     ptStatusEl.className = 'ai-chat-pt-status-' + (type || 'info');
-    var icon = ptStatusEl.querySelector('.ai-chat-pt-status-icon');
-    var txt = ptStatusEl.querySelector('.ai-chat-pt-status-text');
-    if (type === 'translating') {
-      icon.textContent = '翻译中';
-    } else if (type === 'success') {
-      icon.innerHTML = '<svg viewBox="0 0 20 20" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="4 10 8 14 16 6"/></svg>';
-    } else if (type === 'error') {
-      icon.innerHTML = '<svg viewBox="0 0 20 20" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><line x1="6" y1="6" x2="14" y2="14"/><line x1="14" y1="6" x2="6" y2="14"/></svg>';
-    } else {
-      icon.innerHTML = '<svg viewBox="0 0 20 20" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"><circle cx="11" cy="11" r="8.5"/><path d="M3 11h16"/><path d="M11 2.5A12.5 12.5 0 0 1 14 11a12.5 12.5 0 0 1-3 8.5"/><path d="M11 2.5A12.5 12.5 0 0 0 8 11a12.5 12.5 0 0 0 3 8.5"/></svg>';
-    }
-    txt.textContent = text;
-  }
-
-  function hidePtStatus() {
-    if (ptStatusEl) { ptStatusEl.className = 'ai-chat-pt-status-hidden'; }
+    ptStatusEl.innerHTML = '<span class="ai-chat-pt-status-icon">' + ptStatusIconHtml(type) + '</span><span class="ai-chat-pt-status-text">' + text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
   }
 
   function resetDeskPetPosition() {
