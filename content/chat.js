@@ -89,10 +89,14 @@ if (transBtn) transBtn.style.display = expPageTranslationEnabled ? '' : 'none';
       browserControlEnabled = s.browserControl === true;
       var browserBtn = document.getElementById('ai-chat-browser-btn');
       if (browserBtn) browserBtn.style.display = browserControlEnabled ? '' : 'none';
+      shellMasterEnabled = s.shellHostEnabled === true;
+      var shellBtn = document.getElementById('ai-chat-shell-toggle');
+      if (shellBtn) shellBtn.style.display = shellMasterEnabled ? '' : 'none';
+      if (shellMasterEnabled) loadSkillList();
       var subBtn = document.getElementById('ai-chat-bili-subtitle-btn');
       if (subBtn) subBtn.style.display = (/bilibili\.com\/video\//.test(window.location.href)) ? '' : 'none';
       var ytSubBtn = document.getElementById('ai-chat-yt-subtitle-btn');
-      if (ytSubBtn) ytSubBtn.style.display = (/youtube\.com\/(watch\?|shorts\/)/.test(window.location.href)) ? '' : 'none';
+      if (ytSubBtn) ytSubBtn.style.display = (/youtube\.com/.test(window.location.href)) ? '' : 'none';
       if (s.deskPetAlways === true && floatingBtn) {
         floatingBtn.style.display = 'flex';
         startFloatingTimer();
@@ -171,15 +175,16 @@ sidebar.innerHTML =
           '<div id="ai-chat-quick-actions"></div>' +
            '<div id="ai-chat-search-bar">' +
             '<button id="ai-chat-search-toggle" class="ai-chat-search-off" title="联网搜索开关">' +
-              '<svg viewBox="0 0 16 16" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"/></svg>' +
+              '<svg viewBox="0 0.8 16 15.2" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"/></svg>' +
             '</button>' +
             '<select id="ai-chat-search-provider" title="选择搜索引擎" style="display:none">' +
               '<option value="anysearch">AnySearch(推荐)</option>' +
-              '<option value="webfetch">百度网页版</option>' +
+              '<option value="baidu-dom">百度网页版</option>' +
               '<option value="baidu-hp">百度(高性能)</option>' +
               '<option value="baidu-standard">百度(标准)</option>' +
               '<option value="tavily">Tavily</option>' +
             '</select>' +
+            '<button id="ai-chat-shell-toggle" class="ai-chat-shell-off" title="开启后可执行命令及读写本地文件" style="display:none"><svg viewBox="0 0 16 16" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:translateY(1px)"><rect x="2" y="1" width="12" height="9" rx="1"/><line x1="5" y1="13" x2="11" y2="13"/><line x1="8" y1="10" x2="8" y2="13"/></svg></button>' +
             '<button id="ai-chat-webqa-btn" title="此模式下不识别当前网页内容">联网问答模式</button>' +
 '<button id="ai-chat-browser-btn" title="通过 AI 操控此页面" style="display:none">浏览器操控</button>' +
 '<button id="ai-chat-bili-subtitle-btn" title="下载 B 站视频字幕" style="display:none">下载字幕</button>' +
@@ -445,7 +450,7 @@ sidebar.innerHTML =
               '<label>搜索引擎</label>' +
               '<select id="ai-chat-settings-search-provider">' +
                 '<option value="anysearch">AnySearch（推荐）</option>' +
-                '<option value="webfetch">百度网页版</option>' +
+                '<option value="baidu-dom">百度网页版</option>' +
                 '<option value="baidu-standard">百度智能搜索生成（标准版）</option>' +
                 '<option value="baidu-hp">百度智能搜索生成（高性能版）</option>' +
                 '<option value="tavily">Tavily</option>' +
@@ -508,6 +513,27 @@ sidebar.innerHTML =
 '<div class="ai-chat-settings-row ai-chat-settings-row-nested">' +
   '<label><input type="checkbox" id="ai-chat-settings-exp-browser-vision"> 视觉识别（截图识别网页内容，消耗更多 Token）</label>' +
 '</div>' +
+'</div>' +
+'<div class="ai-chat-settings-row">' +
+  '<label><input type="checkbox" id="ai-chat-settings-exp-shell"> 本地文件读写（可通过安装程序执行命令读写本地文件）</label>' +
+'</div>' +
+'<div class="ai-chat-settings-row ai-chat-settings-row-nested" id="ai-chat-shell-status-row" style="display:none">' +
+  '<span id="ai-chat-shell-status">状态: 检测中...</span>' +
+'</div>' +
+'<div class="ai-chat-settings-row ai-chat-settings-row-nested" id="ai-chat-shell-install-row" style="display:none">' +
+  '<details style="font-size:12px">' +
+    '<summary style="cursor:pointer;color:#888">查看安装指南</summary>' +
+    '<p style="margin:6px 0;color:#888">请先安装 <a href="https://nodejs.org/zh-cn" target="_blank" style="color:#607cd2">Node.js</a> (>=18)。然后开始按钮右键点击——终端，复制下面的代码后回车：</p>' +
+    '<code id="ai-chat-shell-install-cmd" style="display:block;padding:8px;background:#f5f5f5;border-radius:6px;word-break:break-all;user-select:all;font-size:12px">加载中...</code>' +
+    '<p style="margin:6px 0;color:#888">安装后重启浏览器，然后在对话界面点击计算机按钮启用。</p>' +
+  '</details>' +
+'</div>' +
+'<div class="ai-chat-settings-row ai-chat-settings-row-nested" id="ai-chat-shell-test-row" style="display:none">' +
+  '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">' +
+    '<button id="ai-chat-shell-test-btn" style="padding:4px 12px;border:1px solid #d0d0d0;border-radius:12px;background:#f8f8f8;cursor:pointer;font-size:12px">测试连接</button>' +
+    '<button id="ai-chat-shell-upgrade-btn" style="padding:4px 12px;border:1px solid #d0d0d0;border-radius:12px;background:#f8f8f8;cursor:pointer;font-size:12px">升级</button>' +
+  '</div>' +
+  '<div id="ai-chat-shell-status-info" style="font-size:12px;margin-top:4px"></div>' +
 '</div>' +
           '<button id="ai-chat-settings-save" class="ai-chat-settings-save">保存设置</button>' +
           '<div id="ai-chat-settings-status" class="ai-chat-settings-status"></div>' +
@@ -613,6 +639,20 @@ sidebar.innerHTML =
       this.classList.toggle('ai-chat-search-off', !session.webSearchEnabled);
       this.classList.toggle('ai-chat-search-on', session.webSearchEnabled);
       saveSessions();
+    });
+    document.getElementById('ai-chat-shell-toggle').addEventListener('click', function() {
+      var session = getCurrentSession();
+      if (!session) return;
+      session.shellHostEnabled = !session.shellHostEnabled;
+      this.classList.toggle('ai-chat-shell-off', !session.shellHostEnabled);
+      this.classList.toggle('ai-chat-shell-on', session.shellHostEnabled);
+      saveSessions();
+      callShellHost('tools/call', { name: 'shell_status', arguments: {} }).then(function() {
+        showBiliToast('Shell 已连接');
+        loadSkillList();
+      }).catch(function(err) {
+        showBiliToast('Shell 未连接: ' + err.message);
+      });
     });
     document.getElementById('ai-chat-webqa-btn').addEventListener('click', toggleWebQaMode);
     document.getElementById('ai-chat-browser-btn').addEventListener('click', function() {
@@ -1833,7 +1873,7 @@ sidebar.innerHTML =
         currentDomainKey = getDomainKey(url);
         currentFullUrl = url;
         switchSession(minimizedSessionId).then(function() {
-          renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle();
+          renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle(); updateShellToggle();
           loadPageContent();
         });
       } else {
@@ -2156,7 +2196,7 @@ sidebar.innerHTML =
     currentFullUrl = url;
     initSessions(url).then(function() {
       return createSession(url, optimizer && optimizer.name).then(function() {
-        renderSessionList(); renderMessages(); updateHeaderTitle(); loadPageContent(); updateSearchToggle();
+        renderSessionList(); renderMessages(); updateHeaderTitle(); loadPageContent(); updateSearchToggle(); updateShellToggle();
       });
     }).catch(function(e) {
       console.log('[AI] init sessions error:', e);
@@ -2174,7 +2214,7 @@ sidebar.innerHTML =
     var subBtn = document.getElementById('ai-chat-bili-subtitle-btn');
     if (subBtn) subBtn.style.display = (/bilibili\.com\/video\//.test(url)) ? '' : 'none';
     var ytSubBtn = document.getElementById('ai-chat-yt-subtitle-btn');
-    if (ytSubBtn) ytSubBtn.style.display = (/youtube\.com\/(watch\?|shorts\/)/.test(url)) ? '' : 'none';
+    if (ytSubBtn) ytSubBtn.style.display = (/youtube\.com/.test(url)) ? '' : 'none';
     window.postMessage({type: 'ytClearSubtitleCache'}, '*');
     var domainKey = getDomainKey(url);
     var isVideoPage = /bilibili\.com\/video\//.test(url) || /youtube\.com\/(watch\?|shorts\/)/.test(url);
@@ -2182,13 +2222,13 @@ sidebar.innerHTML =
       currentDomainKey = domainKey;
       createSession(url, optimizer && optimizer.name).then(function(sid) {
         if (!sid) return;
-        showChatView(); renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle();
+        showChatView(); renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle(); updateShellToggle();
         setTimeout(refreshPageContent, 600);
       });
     } else if (isVideoPage) {
       createSession(url, optimizer && optimizer.name).then(function(sid) {
         if (!sid) return;
-        showChatView(); renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle();
+        showChatView(); renderSessionList(); renderMessages(); updateHeaderTitle(); updateSearchToggle(); updateShellToggle();
         setTimeout(refreshPageContent, 600);
       });
     } else {
@@ -2398,7 +2438,7 @@ sidebar.innerHTML =
       if (searchProvider) searchProvider.style.display = 'none';
       if (quickActions) quickActions.style.display = '';
       if (browserBtn) browserBtn.style.display = browserControlEnabled ? '' : 'none';
-      updateSearchToggle();
+      updateSearchToggle(); updateShellToggle();
       if (welcomeText) welcomeText.textContent = '我是虎宝，快和我说话吧。';
       if (welcomeHint) {
         welcomeHint.textContent = '输入问题开始对话';
@@ -2461,7 +2501,7 @@ sidebar.innerHTML =
     if (hdr) hdr.classList.remove('settings-active');
     var toggleBtn = document.getElementById('ai-chat-view-toggle');
     if (toggleBtn) toggleBtn.innerHTML = '<svg viewBox="0 0 20 20" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>';
-    updateSearchToggle(); updateWebQaUI();
+    updateSearchToggle(); updateShellToggle(); updateWebQaUI();
   }
 
   function updateSearchToggle() {
@@ -2471,6 +2511,22 @@ sidebar.innerHTML =
     var enabled = session && session.webSearchEnabled;
     btn.classList.toggle('ai-chat-search-off', !enabled);
     btn.classList.toggle('ai-chat-search-on', !!enabled);
+  }
+
+  var shellMasterEnabled = false;
+
+  function updateShellToggle() {
+    var btn = document.getElementById('ai-chat-shell-toggle');
+    if (!btn) return;
+    if (!shellMasterEnabled) {
+      btn.style.display = 'none';
+      return;
+    }
+    var session = getCurrentSession();
+    var enabled = session && session.shellHostEnabled;
+    btn.style.display = '';
+    btn.classList.toggle('ai-chat-shell-off', !enabled);
+    btn.classList.toggle('ai-chat-shell-on', !!enabled);
   }
 
   function showSessionView() {
@@ -2833,7 +2889,7 @@ sidebar.innerHTML =
       }
       showApiKeyForProvider(s.provider);
       document.getElementById('ai-chat-settings-prompt').value = s.systemPrompt || '';
-      document.getElementById('ai-chat-settings-history').value = s.maxHistoryRounds !== undefined ? s.maxHistoryRounds : 8;
+          document.getElementById('ai-chat-settings-history').value = s.maxHistoryRounds !== undefined ? s.maxHistoryRounds : 6;
       document.getElementById('ai-chat-settings-max-sessions').value = s.maxSessions || 50;
       document.getElementById('ai-chat-settings-content-limit').value = s.pageContentMaxChars !== undefined ? s.pageContentMaxChars : 100000;
       document.getElementById('ai-chat-settings-thinking').checked = s.thinkingMode || false;
@@ -3037,6 +3093,79 @@ sidebar.innerHTML =
         document.getElementById('ai-chat-settings-lang-custom').value = s.translateLanguage;
         document.getElementById('ai-chat-settings-lang-back').style.display = '';
       }
+      // Shell 设置
+      var shellCb = document.getElementById('ai-chat-settings-exp-shell');
+      if (shellCb) {
+        shellCb.checked = s.shellHostEnabled === true;
+        shellMasterEnabled = shellCb.checked;
+        updateShellToggle();
+        var showShell = shellCb.checked;
+        document.getElementById('ai-chat-shell-status-row').style.display = showShell ? '' : 'none';
+        document.getElementById('ai-chat-shell-install-row').style.display = showShell ? '' : 'none';
+        document.getElementById('ai-chat-shell-test-row').style.display = showShell ? '' : 'none';
+        var updateShellStatus = function() {
+          var isEdge = navigator.userAgent.indexOf('Edg/') > -1;
+          var browser = isEdge ? 'edge' : 'chrome';
+          var extId = chrome.runtime.id || 'kgpeoblpookpclfcoicagocelngcaohe';
+          var cmdEl = document.getElementById('ai-chat-shell-install-cmd');
+          if (cmdEl) cmdEl.textContent = 'npx hupilot-shell-host install --browser ' + browser + ' --extension-id ' + extId;
+          var statusEl = document.getElementById('ai-chat-shell-status');
+          var infoEl = document.getElementById('ai-chat-shell-status-info');
+          if (statusEl) statusEl.innerHTML = '状态: 检测中...';
+          if (infoEl) infoEl.innerHTML = '';
+          callShellHost('tools/call', { name: 'shell_status', arguments: {} }).then(function() {
+            if (statusEl) statusEl.innerHTML = '状态: <span style="color:#607cd2">已连接</span>';
+            loadSkillList();
+            checkShellHostVersion().then(function(v) {
+              if (infoEl) {
+                if (v === SHELL_HOST_LATEST_VERSION) {
+                  infoEl.innerHTML = '<span style="color:#607cd2">已是最新版（v' + v + '）</span>';
+                } else {
+                  infoEl.innerHTML = '<span style="color:#e53935">v' + v + '（需要升级到最新版: ' + SHELL_HOST_LATEST_VERSION + '）</span>';
+                }
+              }
+            }).catch(function() {});
+          }).catch(function() {
+            if (statusEl) statusEl.innerHTML = '状态: <span style="color:#e53935">未安装</span>';
+            if (infoEl) infoEl.innerHTML = '';
+          });
+        };
+        if (showShell) updateShellStatus();
+        shellCb.addEventListener('change', function() {
+          var checked = this.checked;
+          if (checked && !confirm('开启后可通过虎宝执行本地命令及读写本地文件，此功能为实验功能，功能尚不完善，且需要安装本地程序，请谨慎使用。\n\n确认开启吗？')) {
+            this.checked = false;
+            return;
+            }
+          shellMasterEnabled = this.checked;
+          document.getElementById('ai-chat-shell-status-row').style.display = checked ? '' : 'none';
+          document.getElementById('ai-chat-shell-install-row').style.display = checked ? '' : 'none';
+          document.getElementById('ai-chat-shell-test-row').style.display = checked ? '' : 'none';
+          updateShellToggle();
+          if (checked) updateShellStatus();
+        });
+        var testBtn = document.getElementById('ai-chat-shell-test-btn');
+        if (testBtn) {
+          testBtn.addEventListener('click', function() {
+            updateShellStatus();
+          });
+        }
+        var upgradeBtn = document.getElementById('ai-chat-shell-upgrade-btn');
+        if (upgradeBtn) {
+          upgradeBtn.addEventListener('click', function() {
+            var infoEl = document.getElementById('ai-chat-shell-status-info');
+            if (infoEl) infoEl.innerHTML = '正在升级...';
+            callShellHost('tools/call', {
+              name: 'shell_exec',
+              arguments: { command: 'npx --registry https://registry.npmjs.org/ hupilot-shell-host install', timeout_ms: 120000 }
+            }).then(function() {
+              if (infoEl) infoEl.innerHTML = '<span style="color:#607cd2">升级成功，请重启浏览器生效</span>';
+            }).catch(function(err) {
+              if (infoEl) infoEl.innerHTML = '<span style="color:#e53935">升级失败: ' + err.message + '</span>';
+            });
+          });
+        }
+      }
     });
   }
 
@@ -3120,6 +3249,7 @@ sidebar.innerHTML =
     s.browserUseVision = document.getElementById('ai-chat-settings-exp-browser-vision').checked;
     var visionCb = document.getElementById('ai-chat-settings-exp-browser-vision');
     if (visionCb) visionCb.style.display = browserControlEnabled ? '' : 'none';
+    s.shellHostEnabled = document.getElementById('ai-chat-settings-exp-shell').checked;
     s.ttsEdgeDirect = document.getElementById('ai-chat-settings-tts-edge-direct').checked;
     s.mobileMode = document.getElementById('ai-chat-settings-mobile-mode').checked;
     s.pageTranslation = document.getElementById('ai-chat-settings-exp-page-translate').checked;
@@ -3400,7 +3530,7 @@ sidebar.innerHTML =
     welcomeEl.style.display = 'none';
     for (var j = 0; j < session.messages.length; j++) {
       var msg = session.messages[j];
-      if (msg.role === 'system') continue;
+      if (msg.role === 'system' || msg.role === 'tool') continue;
       appendMessageDOM(msg.role, msg.content, msg.reasoning, msg.createdAt);
     }
     scrollToBottom();
@@ -3747,6 +3877,7 @@ var text = (function() {
       }
     }
     div.appendChild(actionsDiv);
+    if (role === 'assistant') showDoneCheck();
     messagesEl.appendChild(div);
   }
 
@@ -3774,6 +3905,7 @@ var text = (function() {
     div.appendChild(details);
     var cDiv = document.createElement('div');
     cDiv.className = 'ai-chat-msg-content';
+    cDiv.textContent = '思考中...';
     div.appendChild(cDiv);
     var actionsDiv = document.createElement('div');
     actionsDiv.className = 'ai-chat-msg-actions';
@@ -4146,7 +4278,14 @@ var text = (function() {
     contentDiv.className = 'ai-chat-msg-content';
     contentDiv.innerHTML = '正在思考 <span class="ai-chat-typing"><span></span><span></span><span></span></span>';
     div.appendChild(contentDiv);
+    var actionsDiv = document.createElement('div');
+    actionsDiv.className = 'ai-chat-msg-actions';
+    var doneBtn = document.createElement('button');
+    doneBtn.className = 'ai-chat-msg-done';
+    actionsDiv.appendChild(doneBtn);
+    div.appendChild(actionsDiv);
     messagesEl.appendChild(div);
+    showDoneLoading();
     scrollToBottom();
   }
 
@@ -4258,7 +4397,7 @@ var text = (function() {
         updateSessionPageContent(session.id, freshContent);
       }
 
-      return readAISettings().then(function(settings) {
+      return readAISettings().then(async function(settings) {
         if (!((settings.providerKeys || {})[settings.provider] || settings.apiKey)) throw new Error('请先在设置中配置 API Key');
 
         var apiMessages = [];
@@ -4301,8 +4440,21 @@ var maxChars = settings.pageContentMaxChars || 100000;
             systemText = systemText.replace('不要长篇大论', '不要只做简短总结').replace('请简洁准确地回答', '请给出详细完整的回答，包含具体信息、数据、来源等细节');
             systemText += '\n\n请在搜索关键词中使用正确的日期。';
           }
-          if (session.webSearchEnabled && searchProvider === 'baidu-standard') {
-            systemText += '\n\n当使用搜索工具时：搜索结果是参考资料，不代表最终回答。你需要仔细阅读搜索结果，提炼关键信息，用你自己的语言给出完整的、结构化的推荐回答，列举具体品牌型号和特点。不要只说"以上是搜索结果"或类似的简短总结。';
+          if (session.webSearchEnabled && searchProvider !== 'baidu-hp') {
+            systemText += '\n\n当使用搜索工具时，请遵循以下规则：\n\n### 使用场景\n在以下情况应当使用 searchWeb 工具搜索互联网：\n- 用户询问实时信息、新闻、事件、汇率、天气等\n- 用户询问你不确定的知识，需要查阅最新资料\n- 用户明确要求你搜索或查询某些信息\n- 你需要验证事实、数据或引用来源\n\n当用户提供了具体的网页 URL 时，应当使用 fetchWebPage 工具获取页面内容。\n\n### 流程\n1. 先调用 searchWeb 进行搜索\n2. 搜索结果会回传给你\n3. 阅读搜索结果后，基于结果给出完整回答\n\n### 规则\n- 搜索关键词使用中文\n- 如第一次搜索不够，可搜索不同关键词\n- 回答必须基于搜索结果，包含具体信息、数据、来源\n- 不要只说"以上是搜索结果"或类似的简短总结';
+          }
+          if (session.shellHostEnabled) {
+            systemText += '\n\n### Shell 工具\nShell 已连接。可通过工具调用（function calling）执行本地命令和 Python 代码。\n\n可用工具：\n- shell_exec: 执行本地 Shell/PowerShell 命令\n- python_exec: 执行 Python 代码（不要用 shell_exec 包一层，Python 代码必须直接使用 python_exec 工具）\n- shell_status: 查看系统环境\n- local_folder_pick: 选择本地文件夹\n\n路径中的反斜杠请用正斜杠替代，例如 C:/Users/\n\n规则：\n- Python 代码必须直接使用 python_exec 工具，不要用 shell_exec 执行 python 命令';
+            if (window.__skillList && window.__skillList.length > 0) {
+              systemText += '\n\n### 可用技能\n以下技能可帮助你完成特定任务。当用户问题与以下技能相关时，在回答中输出 <skill name="技能名"/> 来激活技能。激活后我会把完整技能文档注入对话。\n';
+              for (var si = 0; si < window.__skillList.length; si++) {
+                var sk = window.__skillList[si];
+                systemText += '\n- **' + sk.name + '**: ' + (sk.description || '');
+              }
+              if (window.__skillsDir) {
+                systemText += '\n\n技能脚本路径: ' + window.__skillsDir + '\n当运行技能中的 Python 脚本时，使用完整路径：\n' + window.__skillsDir + '/技能名/scripts/脚本名';
+              }
+            }
           }
           apiMessages.push({ role: 'system', content: systemText });
         }
@@ -4310,8 +4462,30 @@ var maxChars = settings.pageContentMaxChars || 100000;
         var historyMsgs = session.messages.slice(session.contextStartIndex || 0, -1);
         var maxRounds = webQaMode ? 10 : settings.maxHistoryRounds;
         if (maxRounds > 0) {
-          var max = maxRounds * 2;
-          if (historyMsgs.length > max) historyMsgs = historyMsgs.slice(historyMsgs.length - max);
+          var userIndices = [];
+          for (var hi = 0; hi < historyMsgs.length; hi++) {
+            if (historyMsgs[hi].role === 'user') userIndices.push(hi);
+          }
+          var keepRounds = 2;
+          if (userIndices.length > maxRounds) {
+            var keepStart = userIndices[userIndices.length - keepRounds];
+            var summarizePart = historyMsgs.slice(0, keepStart);
+            var keepPart = historyMsgs.slice(keepStart);
+            try {
+              var summaryMessages = [
+                { role: 'system', content: '你是一个对话摘要助手。请用中文简要总结以下对话中已经完成的事情、做出的决定，以及待办事项。只输出总结内容，不要输出其他。' },
+                { role: 'user', content: JSON.stringify(summarizePart.map(function(m) { return { role: m.role, content: typeof m.content === 'string' ? m.content.substring(0, 2000) : '' }; })) }
+              ];
+              var summaryText = await callAI(settings, summaryMessages, null, null, null);
+              if (summaryText && typeof summaryText === 'string') {
+                historyMsgs = [{ role: 'system', content: '前期对话摘要：\n' + summaryText }].concat(keepPart);
+              } else {
+                historyMsgs = keepPart;
+              }
+            } catch (e) {
+              historyMsgs = keepPart;
+            }
+          }
         }
         for (var i = 0; i < historyMsgs.length; i++) {
           apiMessages.push({ role: historyMsgs[i].role, content: historyMsgs[i].content });
@@ -4319,11 +4493,11 @@ var maxChars = settings.pageContentMaxChars || 100000;
         apiMessages.push({ role: 'user', content: apiUserText });
 
         var searchProvider = settings.webSearchProvider || 'tavily';
-        var hasSearchKey = searchProvider === 'tavily' ? settings.tavilyApiKey : (searchProvider === 'baidu-standard' || searchProvider === 'baidu-hp') ? settings.baiduApiKey : searchProvider === 'anysearch' ? settings.anysearchApiKey : 'webfetch';
+        var hasSearchKey = searchProvider === 'tavily' ? settings.tavilyApiKey : (searchProvider === 'baidu-standard' || searchProvider === 'baidu-hp') ? settings.baiduApiKey : searchProvider === 'anysearch' ? settings.anysearchApiKey : 'baidu-dom';
         var tools = null;
         if (webQaMode || session.webSearchEnabled) {
-          if (searchProvider === 'webfetch') {
-            tools = [WEB_SEARCH_TOOL];
+          if (searchProvider === 'baidu-dom') {
+            tools = [WEB_SEARCH_TOOL, FETCH_WEB_PAGE_TOOL];
           } else if (!hasSearchKey) {
             tools = [FETCH_WEB_PAGE_TOOL];
           } else if (searchProvider === 'baidu-hp') {
@@ -4332,7 +4506,11 @@ var maxChars = settings.pageContentMaxChars || 100000;
             tools = [WEB_SEARCH_TOOL, FETCH_WEB_PAGE_TOOL];
           }
         }
-        var MAX_TOOL_ROUNDS = 5;
+        if (session.shellHostEnabled) {
+          if (!tools) tools = [];
+          tools.push(SHELL_EXEC_TOOL, PYTHON_EXEC_TOOL, SHELL_STATUS_TOOL, LOCAL_FOLDER_PICK_TOOL);
+        }
+        var MAX_TOOL_ROUNDS = 10;
 
         function doSendLoop(messages, round, roundTools) {
           console.log('[AI Search] round ' + round + ', tools:', !!roundTools, 'messages:', messages.length);
@@ -4379,15 +4557,26 @@ var maxChars = settings.pageContentMaxChars || 100000;
           }, currentAbortController.signal, roundTools).then(function(result) {
             console.log('[AI Search] round ' + round + ' result keys:', result ? Object.keys(result).join(',') : 'null');
             if (result && result.tool_calls) console.log('[AI Search] tool_calls count:', result.tool_calls.length);
+            if (result && result.tool_calls && result.content) console.log('[DEBUG] content + tool_calls both, contentFirst=' + JSON.stringify(result.content.substring(0, 80)));
             // Tool calls 处理
             if (result && result.tool_calls && result.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
               console.log('[AI Search] tool_calls detected:', JSON.stringify(result.tool_calls).substring(0, 200));
               removeTyping();
 
-              // 区分 searchWeb 和 fetchWebPage
+              // Shell 工具与搜索工具分离
+              var SHELL_TOOL_NAMES = { shell_exec: 1, python_exec: 1, shell_status: 1, local_folder_pick: 1 };
+              var shellTcs = result.tool_calls.filter(function(tc) { return SHELL_TOOL_NAMES[tc.function.name]; });
               var searchTcs = result.tool_calls.filter(function(tc) { return tc.function.name === 'searchWeb'; });
               var fetchTcs = result.tool_calls.filter(function(tc) { return tc.function.name === 'fetchWebPage'; });
-              console.log('[AI Tools] searchWeb:', searchTcs.length, 'fetchWebPage:', fetchTcs.length, 'provider:', searchProvider, 'isBaidu:', isBaiduSearch);
+              console.log('[AI Tools] shell:', shellTcs.length, 'searchWeb:', searchTcs.length, 'fetchWebPage:', fetchTcs.length);
+              // 获取原始用户问题
+              var origQuestion = '';
+              for (var qi = messages.length - 2; qi >= 0; qi--) {
+                if (messages[qi].role === 'user' && messages[qi].content) {
+                  origQuestion = typeof messages[qi].content === 'string' ? messages[qi].content.substring(0, 1000) : '';
+                  break;
+                }
+              }
 
               // 构建 assistant tool_calls 消息
               messages.push({
@@ -4426,12 +4615,12 @@ var maxChars = settings.pageContentMaxChars || 100000;
                           allSearchText += '--- 网页内容 ---\n' + (fResults[i] || '') + '\n\n';
                         });
                         allSearchText = allSearchText.substring(0, 50000);
-messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n搜索结果：\n\n' + allSearchText });
+messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n搜索结果：\n\n' + allSearchText });
                         return doSendLoop(messages, round + 1, null);
                       });
                     }
                     allSearchText = allSearchText.substring(0, 50000);
-                    messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n搜索结果：\n\n' + allSearchText });
+                    messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n搜索结果：\n\n' + allSearchText });
                     return doSendLoop(messages, round + 1, null);
                   }).catch(function(err) {
                     console.log('[AI Baidu standard] error:', err.message);
@@ -4476,22 +4665,14 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
 
               // === Tavily 搜索：获取结果后直接显示到 UI ===
               if (!isBaiduSearch && searchTcs.length > 0) {
-                if (searchProvider === 'webfetch') {
-                  // === WebFetch 搜索：获取搜索结果文本 → 加指令消息 → 递归让模型生成
+                if (searchProvider === 'baidu-dom') {
+                  // === 百度网页版搜索：获取搜索结果文本 → 加指令消息 → 递归让模型生成
                   if (round === 0) { appendMessageDOM('assistant', '正在联网搜索...'); scrollToBottom(); }
                   else { updateLastAssistantMessage('正在联网搜索...'); scrollToBottom(); }
-                  // 获取用户原始问题
-                  var origQuestion = '';
-                  for (var qi = messages.length - 2; qi >= 0; qi--) {
-                    if (messages[qi].role === 'user' && messages[qi].content) {
-                      origQuestion = messages[qi].content;
-                      break;
-                    }
-                  }
                   var wfPromises = searchTcs.map(function(tc) {
                     var args = JSON.parse(tc.function.arguments);
                     var requestedMax = args.maxResults || 5;
-                    return searchWeb('webfetch', '', args.query, requestedMax);
+                    return searchWeb('baidu-dom', '', args.query, requestedMax);
                   });
                   return Promise.all(wfPromises).then(function(wfResults) {
                     var allText = '';
@@ -4509,12 +4690,12 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
                           allText += '--- 网页内容 ---\n' + (fResults[i] || '') + '\n\n';
                         });
                         allText = allText.substring(0, 50000);
-                        messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：' + origQuestion + '\n\n搜索结果：\n\n' + allText });
+                        messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n搜索结果：\n\n' + allText });
                         return doSendLoop(messages, round + 1, null);
                       });
                     }
                     allText = allText.substring(0, 50000);
-                    messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：' + origQuestion + '\n\n搜索结果：\n\n' + allText });
+                    messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n搜索结果：\n\n' + allText });
                     return doSendLoop(messages, round + 1, null);
                   });
                 } else {
@@ -4550,17 +4731,17 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
                           allText += '--- 网页内容 ---\n' + (fResults[i] || '') + '\n\n';
                         });
                         allText = allText.substring(0, 50000);
-                        messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n搜索结果：\n\n' + allText });
+                        messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n搜索结果：\n\n' + allText });
                         return doSendLoop(messages, round + 1, null);
                       });
                     }
                     allText = allText.substring(0, 50000);
-                    messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n搜索结果：\n\n' + allText });
+                    messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含搜索结果中的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n搜索结果：\n\n' + allText });
                     return doSendLoop(messages, round + 1, null);
                   });
                 }
               }
-
+            
               // === 只有 fetchWebPage：获取网页内容 → 加指令消息 → 递归让模型生成 ===
               if (fetchTcs.length > 0) {
                 console.log('[AI Fetch] executing fetchWebPage, count:', fetchTcs.length);
@@ -4574,7 +4755,7 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
                 return Promise.all(fPromises).then(function(fResults) {
                   console.log('[AI Fetch] results length:', fResults.map(function(r) { return r.length; }));
                   var allText = fResults.join('\n\n').substring(0, 50000);
-                  messages.push({ role: 'user', content: '以下是获取到的网页内容，请基于这些内容给出推荐回答：\n\n' + allText });
+                  messages.push({ role: 'user', content: '【指令】以下规则优先级高于系统提示，必须遵守：\n1. 针对每一个问题分别给出详细完整的回答（至少3~5句），不要只写一行；\n2. 包含获取到的具体信息、数据、来源等细节；\n3. 最后给出明确结论或建议。\n不要只做简短总结。\n\n用户的问题是：\n' + origQuestion + '\n\n网页内容：\n\n' + allText });
                   return doSendLoop(messages, round + 1, null);
     });
     readAISettings().then(function(s) {
@@ -4585,9 +4766,71 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
     });
   }
 
+              // === Shell 工具调用 ===
+              if (shellTcs.length > 0) {
+                console.log('[AI Shell] executing', shellTcs.length, 'shell tools');
+                removeTyping();
+                if (result && result.content && result.content.trim()) {
+                  // 有正文：保留文字，不打勾，不替换
+                  showDoneLoading();
+                } else {
+                  // 纯命令：替换为提示文字
+                  if (msgEls && msgEls.contentEl) {
+                    showDoneLoading();
+                    requestAnimationFrame(function() { updateLastAssistantMessage('已执行Shell命令，请等待输出结果。'); });
+                  } else {
+                    appendMessageDOM('assistant', '已执行Shell命令，请等待输出结果。');
+                    showDoneLoading();
+                  }
+                }
+                var shellPromises = shellTcs.map(function(tc) {
+                  var args = JSON.parse(tc.function.arguments);
+                  return callShellHost('tools/call', { name: tc.function.name, arguments: args }).then(function(res) {
+                    var text = res && res.content && res.content[0] ? res.content[0].text : '(no output)';
+                    return { role: 'tool', tool_call_id: tc.id, content: text };
+                  }).catch(function(err) {
+                    return { role: 'tool', tool_call_id: tc.id, content: 'Error: ' + err.message };
+                  });
+                });
+                return Promise.all(shellPromises).then(function(toolResults) {
+                  removeTyping();
+                  toolResults.forEach(function(r) { messages.push(r); });
+                  if (searchTcs.length === 0 && fetchTcs.length === 0) {
+                    console.log('[AI Shell] tools result injected, recursing with roundTools:', !!roundTools);
+                    return doSendLoop(messages, round + 1, roundTools);
+                  }
+                });
+              }
+
+              // 没有匹配任何工具的 tool_calls
+              if (shellTcs.length === 0 && searchTcs.length === 0 && fetchTcs.length === 0) console.log('[DEBUG] tool_calls unrecognized, names=' + result.tool_calls.map(function(tc){return tc.function.name}).join(','));
               return;
             }
-            
+
+            // === Skill 标签解析 ===
+            var contentText = result && result.content ? result.content : '';
+            var skillRegex = /<skill\s+name="([^"]+)"\s*\/?>/g;
+            var skillMatch = skillRegex.exec(contentText);
+            if (skillMatch && round < MAX_TOOL_ROUNDS) {
+              var skillName = skillMatch[1];
+              var cleanSkillContent = contentText.replace(skillRegex, '').trim();
+              if (!cleanSkillContent) cleanSkillContent = '已加载技能';
+              if (msgEls && msgEls.contentEl) { updateLastAssistantMessage(cleanSkillContent); showDoneCheck(); removeTyping(); }
+              else { appendMessageDOM('assistant', cleanSkillContent); removeTyping(); showDoneCheck(); }
+              return callShellHost('tools/call', { name: 'skill_get', arguments: { name: skillName } }).then(function(res) {
+                var mdContent = res && res.content && res.content[0] ? res.content[0].text : '';
+                if (mdContent) {
+                  var skillPathNote = '';
+                  if (window.__skillsDir) {
+                    var skillDir = window.__skillsDir + '/' + skillName;
+                    skillPathNote = '\n\n### 路径说明\n脚本目录: ' + skillDir + '/scripts\n技能操作使用 python_exec 工具调用';
+                  }
+                  messages.push({ role: 'system', content: '### ' + skillName + ' 技能文档\n以下是为当前任务加载的技能文档。请严格遵循其中的指令来完成任务。\n\n' + mdContent + skillPathNote });
+                  return doSendLoop(messages, round + 1, null);
+                }
+              });
+            }
+
             // 工具调用为空数组或为空内容的兜底
             if (result && result.tool_calls && result.tool_calls.length === 0) {
               console.log('[AI Search] warning: empty tool_calls array, treating as final');
@@ -4868,8 +5111,31 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
         } else {
           showToast('加载翻译模块失败');
         }
+          });
+        }
+      }
+
+  function loadSkillList() {
+    callShellHost('tools/call', { name: 'skill_list', arguments: {} }).then(function(res) {
+      var text = res && res.content && res.content[0] ? res.content[0].text : '[]';
+      try { window.__skillList = JSON.parse(text); } catch(e) { window.__skillList = []; }
+      if (window.__skillList && window.__skillList.length > 0) {
+        var names = window.__skillList.map(function(s) { return s.name; }).join(', ');
+        console.log('[Skills] loaded: ' + names);
+      } else {
+        console.log('[Skills] list empty');
+      }
+      callShellHost('tools/call', { name: 'get_skills_dir', arguments: {} }).then(function(dirRes) {
+        var dirText = dirRes && dirRes.content && dirRes.content[0] ? dirRes.content[0].text.trim() : '';
+        window.__skillsDir = dirText;
+        console.log('[Skills] dir:', dirText);
+      }).catch(function(err) {
+        console.log('[Skills] dir load failed:', err && err.message ? err.message : err);
       });
-    }
+    }).catch(function(err) {
+      window.__skillList = [];
+      console.log('[Skills] load failed:', err && err.message ? err.message : err);
+    });
   }
 
   function doTranslate(force) {

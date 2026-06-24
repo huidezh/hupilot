@@ -591,6 +591,33 @@ div.tts-range-group input[type="number"] {
 #ai-chat-search-toggle.ai-chat-search-on:hover {
   background: #d0ddfd;
 }
+#ai-chat-shell-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid #d0d0d0;
+  border-radius: 12px;
+  background: #f8f8f8;
+  cursor: pointer;
+  font-size: 12px;
+  color: #999;
+  transition: all 0.15s;
+}
+#ai-chat-shell-toggle:hover {
+  background: #eee;
+  border-color: #bbb;
+}
+#ai-chat-shell-toggle.ai-chat-shell-on {
+  background: #e8f0fe;
+  border-color: #607cd2;
+  color: #607cd2;
+}
+#ai-chat-shell-toggle.ai-chat-shell-on:hover {
+  background: #d0ddfd;
+}
 #ai-chat-search-provider {
   padding: 0 6px;
   border: 1px solid #d0d0d0;
@@ -1335,6 +1362,23 @@ html #ai-chat-sidebar div.ai-chat-settings-section {
   color: #8ab4f8;
 }
 #ai-chat-sidebar.ai-chat-dark #ai-chat-search-toggle.ai-chat-search-on:hover {
+  background: #223a5a;
+}
+#ai-chat-sidebar.ai-chat-dark #ai-chat-shell-toggle {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #888;
+}
+#ai-chat-sidebar.ai-chat-dark #ai-chat-shell-toggle:hover {
+  background: #333;
+  border-color: #555;
+}
+#ai-chat-sidebar.ai-chat-dark #ai-chat-shell-toggle.ai-chat-shell-on {
+  background: #1a2a4a;
+  border-color: #4a7ad2;
+  color: #8ab4f8;
+}
+#ai-chat-sidebar.ai-chat-dark #ai-chat-shell-toggle.ai-chat-shell-on:hover {
   background: #223a5a;
 }
 #ai-chat-sidebar.ai-chat-dark #ai-chat-search-provider {

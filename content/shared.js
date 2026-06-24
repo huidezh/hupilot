@@ -15,7 +15,7 @@ var AI_DEFAULT_SETTINGS = {
   model: 'sensenova-6.7-flash-lite',
   apiKey: '',
   systemPrompt: '你的名字叫虎宝，你是一只可爱的小老虎',
-  maxHistoryRounds: 8,
+  maxHistoryRounds: 6,
   thinkingMode: false,
   reasoningEffort: 'medium',
   translateLanguage: '中文',
@@ -30,7 +30,7 @@ var AI_DEFAULT_SETTINGS = {
   tavilyApiKey: '',
   baiduApiKey: '',
   anysearchApiKey: '',
-  webSearchProvider: 'webfetch',
+  webSearchProvider: 'baidu-dom',
   webSearchMaxResults: 5,
   maxSessions: 50,
   providerKeys: {},
@@ -45,6 +45,7 @@ var AI_DEFAULT_SETTINGS = {
   browserControl: false,
   browserUseVision: false,
   pageTranslation: true,
+  shellHostEnabled: false,
   reminderEnabled: false,
   reminders: [],
   mobileMode: false
@@ -95,8 +96,113 @@ var FETCH_WEB_PAGE_TOOL = {
   }
 };
 
+// === Shell Native Host ===
+var SHELL_STATUS_TOOL = {
+  type: 'function',
+  function: {
+    name: 'shell_status',
+    description: 'Check if the shell host is connected and report system information.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false }
+  }
+};
+var SHELL_EXEC_TOOL = {
+  type: 'function',
+  function: {
+    name: 'shell_exec',
+    description: 'Execute a PowerShell command on the local system. When the user asks to read a file, check a path, or list a directory, you MUST use this tool with Get-Content/Test-Path/Get-ChildItem - do NOT output the command text, call this tool instead.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'The shell command to execute.' },
+        cwd: { type: 'string', description: 'Working directory. Defaults to user home.' },
+        timeout_ms: { type: 'integer', description: 'Timeout in ms. Default 120000.' }
+      },
+      required: ['command']
+    }
+  }
+};
+var PYTHON_EXEC_TOOL = {
+  type: 'function',
+  function: {
+    name: 'python_exec',
+    description: 'Execute Python code for calculation, data processing, and file reading (including .docx, .xlsx archives). Use this to read Word documents and other files that need Python libraries. When the user asks to read a file, you should use this tool - do NOT output Python code as text.',
+    parameters: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'Python code to execute.' },
+        timeout_ms: { type: 'integer', description: 'Timeout in ms. Default 10000.' }
+      },
+      required: ['code']
+    }
+  }
+};
+var LOCAL_FOLDER_PICK_TOOL = {
+  type: 'function',
+  function: {
+    name: 'local_folder_pick',
+    description: 'Open the operating system folder picker dialog and return the selected folder path.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Optional prompt text for the folder picker.' }
+      },
+      additionalProperties: false
+    }
+  }
+};
+var SKILL_LIST_TOOL = {
+  type: 'function',
+  function: {
+    name: 'skill_list',
+    description: 'List available skills with name and description.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false }
+  }
+};
+var SKILL_GET_TOOL = {
+  type: 'function',
+  function: {
+    name: 'skill_get',
+    description: 'Get full SKILL.md content for a named skill.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Skill name.' }
+      },
+      required: ['name']
+    }
+  }
+};
+
+var SHELL_HOST_LATEST_VERSION = '1.1.0';
+
+function callShellHost(method, params) {
+  if (!isExtensionValid()) return Promise.reject(new Error('扩展已重载，请刷新页面'));
+  return new Promise(function(resolve, reject) {
+    chrome.runtime.sendMessage({
+      type: 'shellHostRequest',
+      method: method,
+      params: params || {}
+    }, function(res) {
+      if (res && res.error) return reject(new Error(res.error));
+      if (res && res.result) {
+        var rpcResult = res.result;
+        while (rpcResult && rpcResult.result && rpcResult.jsonrpc) rpcResult = rpcResult.result;
+        resolve(rpcResult);
+        return;
+      }
+      reject(new Error('Shell host not connected. Run the install command and restart your browser.'));
+    });
+  });
+}
+
+function checkShellHostVersion() {
+  return callShellHost('get_version').then(function(r) {
+    return r && r.version || 'unknown';
+  });
+}
+
 function searchWeb(provider, apiKey, query, maxResults) {
-  if (provider === 'webfetch') return searchWebFetch(query, maxResults);
+  if (provider === 'baidu-dom') return searchWebFetch(query, maxResults);
   if (!apiKey) return Promise.reject(new Error('未配置搜索引擎 API Key'));
   if (provider === 'tavily') return searchTavily(apiKey, query, maxResults);
   if (provider === 'anysearch') return searchAnySearch(apiKey, query, maxResults);
@@ -164,12 +270,12 @@ function searchWebFetch(query, maxResults) {
   return new Promise(function(resolve, reject) {
     chrome.runtime.sendMessage({
       type: 'searchRequest',
-      provider: 'webfetch',
+      provider: 'generic-fetch',
       url: searchUrl
     }, function(res) {
       if (res && res.error) return reject(new Error(res.error));
       if (res && res.text) {
-        console.log('[WebFetch] raw HTML length:', res.text.length);
+        console.log('[Baidu-dom] raw HTML length:', res.text.length);
         var results = parseBaiduResults(res.text);
         console.log('[WebFetch] parsed results count:', results.length);
         if (results.length === 0) {
@@ -363,7 +469,7 @@ function fetchWebPage(url) {
   return new Promise(function(resolve, reject) {
     chrome.runtime.sendMessage({
       type: 'searchRequest',
-      provider: 'webfetch',
+      provider: 'generic-fetch',
       url: url
     }, function(res) {
       if (res && res.error) return reject(new Error(res.error));
@@ -570,6 +676,7 @@ function createSession(url, forceName) {
       s.pageContent = '';
       s.name = getSessionNameFromTitle(forceName);
       s.webSearchEnabled = false;
+      s.shellHostEnabled = false;
       currentSessionId = s.id;
       return saveSessions().then(function() { return s.id; });
     }
@@ -584,7 +691,8 @@ function createSession(url, forceName) {
     pageContent: '',
     messages: [],
     contextStartIndex: 0,
-    webSearchEnabled: false
+    webSearchEnabled: false,
+    shellHostEnabled: false
   };
   sessionOrder.push(id);
   currentSessionId = id;

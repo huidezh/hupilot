@@ -25,13 +25,31 @@ chrome.runtime.onStartup.addListener(registerBiliInterceptor);
 registerBiliInterceptor();
 
 // ===== YouTube 字幕拦截器注册（动态 content script，MAIN world + document_start） =====
+// 注意：匹配 *://www.youtube.com/* 而非仅 /watch 和 /shorts，原因：
+// 用户可能先从首页 (youtube.com/) 打开，再 SPA 导航到视频页。
+// 拦截器在首页注入后 standby，视频页 URL 变化后自动捕获字幕请求。
 async function registerYtInterceptor() {
   try {
     var scripts = await chrome.scripting.getRegisteredContentScripts();
-    if (scripts.some(function(s) { return s.id === 'yt-subtitle-interceptor'; })) return;
+    var existing = scripts.find(function(s) { return s.id === 'yt-subtitle-interceptor'; });
+    if (existing) {
+      // Update the matches pattern if it's the old restricted one
+      var oldPattern = '*://www.youtube.com/watch*';
+      if (existing.matches && existing.matches[0] === oldPattern) {
+        await chrome.scripting.unregisterContentScripts({ ids: ['yt-subtitle-interceptor'] });
+        await chrome.scripting.registerContentScripts([{
+          id: 'yt-subtitle-interceptor',
+          matches: ['*://www.youtube.com/*'],
+          js: ['content/youtube-subtitle-main.js'],
+          world: 'MAIN',
+          runAt: 'document_start',
+        }]);
+      }
+      return;
+    }
     await chrome.scripting.registerContentScripts([{
       id: 'yt-subtitle-interceptor',
-      matches: ['*://www.youtube.com/watch*', '*://www.youtube.com/shorts/*'],
+      matches: ['*://www.youtube.com/*'],
       js: ['content/youtube-subtitle-main.js'],
       world: 'MAIN',
       runAt: 'document_start',
@@ -651,7 +669,7 @@ chrome.runtime.onMessage.addListener(function(m, s, r) {
             console.log('[AnySearch] response:', JSON.stringify(asData).substring(0, 500));
             r({ ok: true, results: asData.data && asData.data.results || [] });
           } else { r({ error: 'AnySearch HTTP ' + asRes.status + ': ' + (await asRes.text()).substring(0, 200) }); }
-        } else if (m.provider === 'webfetch') {
+        } else if (m.provider === 'generic-fetch') {
           var wfRes = await fetch(m.url);
           if (wfRes.ok) {
             r({ ok: true, text: await wfRes.text() });
@@ -661,6 +679,30 @@ chrome.runtime.onMessage.addListener(function(m, s, r) {
         } else {
           r({ error: '不支持的搜索引擎: ' + m.provider });
         }
+      } catch (e) { r({ error: e.message }); }
+    })();
+    return true;
+  }
+  if (m.type === 'shellHostRequest') {
+    (async function() {
+      try {
+        var shellPort = chrome.runtime.connectNative('com.hupilot.shell');
+        var timeout = setTimeout(function() {
+          try { shellPort.disconnect(); } catch(e) {}
+          r({ error: 'Shell host timed out. Make sure it is installed and restart the browser.' });
+        }, 30000);
+        shellPort.onMessage.addListener(function(resp) {
+          clearTimeout(timeout);
+          try { shellPort.disconnect(); } catch(e) {}
+          r({ result: resp });
+        });
+        shellPort.onDisconnect.addListener(function() {
+          clearTimeout(timeout);
+          if (chrome.runtime.lastError) {
+            r({ error: 'Shell host not found: ' + chrome.runtime.lastError.message + '. Run "npx hupilot-shell-host install" first.' });
+          }
+        });
+        shellPort.postMessage({ jsonrpc: '2.0', id: 1, method: m.method, params: m.params });
       } catch (e) { r({ error: e.message }); }
     })();
     return true;

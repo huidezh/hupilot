@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "zh_CN",
   "name": "__MSG_extensionName__",
-  "version": "1.5.9",
+  "version": "1.6.0",
   "description": "__MSG_extensionDescription__",
   "homepage_url": "https://hubao.huidezh.dpdns.org/",
   "author": "HWB",
@@ -36,7 +36,7 @@
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "activeTab", "scripting", "clipboardWrite", "contextMenus", "debugger", "sidePanel", "webNavigation"],
+  "permissions": ["storage", "activeTab", "scripting", "clipboardWrite", "contextMenus", "debugger", "sidePanel", "webNavigation", "nativeMessaging"],
   "host_permissions": ["<all_urls>", "file:///*"],
   "icons": {
     "16": "icons/icon16.png",

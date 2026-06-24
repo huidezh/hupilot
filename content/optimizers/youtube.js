@@ -1,4 +1,4 @@
-registerOptimizer(/youtube\.com\/(watch\?|shorts\/)/, {
+registerOptimizer(/youtube\.com/, {
   getSubtitle: getYoutubeSubtitles,
   getVideoInfo: getYoutubeVideoInfo,
   extractContent: extractYoutubeContent,
