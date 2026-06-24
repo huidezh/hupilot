@@ -227,6 +227,7 @@ sidebar.innerHTML =
           
           '<li data-target="settings-heading-reminders">定时提醒</li>' +
           '<li data-target="settings-heading-experimental">实验功能</li>' +
+          '<li style="margin-top:8px;border-top:1px solid #e0e0e0;padding-top:8px"><a href="https://hubao.huidezh.dpdns.org/sponsor" target="_blank" style="color:#607cd2;text-decoration:none">赞助支持</a></li>' +
         '</ul></div>' +
         '<div class="ai-chat-settings-scroll">' +
           '<div class="ai-chat-settings-section">' +
@@ -515,7 +516,7 @@ sidebar.innerHTML =
 '</div>' +
 '</div>' +
 '<div class="ai-chat-settings-row">' +
-  '<label><input type="checkbox" id="ai-chat-settings-exp-shell"> 本地文件读写（可通过安装程序执行命令读写本地文件）</label>' +
+  '<label><input type="checkbox" id="ai-chat-settings-exp-shell"> 本地文件读写（可通过安装hupilot-shell-host，执行本地命令，读写本地文件）</label>' +
 '</div>' +
 '<div class="ai-chat-settings-row ai-chat-settings-row-nested" id="ai-chat-shell-status-row" style="display:none">' +
   '<span id="ai-chat-shell-status">状态: 检测中...</span>' +
@@ -523,7 +524,7 @@ sidebar.innerHTML =
 '<div class="ai-chat-settings-row ai-chat-settings-row-nested" id="ai-chat-shell-install-row" style="display:none">' +
   '<details style="font-size:12px">' +
     '<summary style="cursor:pointer;color:#888">查看安装指南</summary>' +
-    '<p style="margin:6px 0;color:#888">请先安装 <a href="https://nodejs.org/zh-cn" target="_blank" style="color:#607cd2">Node.js</a> (>=18)。然后开始按钮右键点击——终端，复制下面的代码后回车：</p>' +
+    '<p style="margin:6px 0;color:#888">请先安装 <a href="https://nodejs.org/zh-cn" target="_blank" style="color:#607cd2">Node.js</a> (>=18)。然后右键点击开始按钮——终端，复制下面的代码到命令框中按回车：</p>' +
     '<code id="ai-chat-shell-install-cmd" style="display:block;padding:8px;background:#f5f5f5;border-radius:6px;word-break:break-all;user-select:all;font-size:12px">加载中...</code>' +
     '<p style="margin:6px 0;color:#888">安装后重启浏览器，然后在对话界面点击计算机按钮启用。</p>' +
   '</details>' +
@@ -537,6 +538,7 @@ sidebar.innerHTML =
 '</div>' +
           '<button id="ai-chat-settings-save" class="ai-chat-settings-save">保存设置</button>' +
           '<div id="ai-chat-settings-status" class="ai-chat-settings-status"></div>' +
+        '</div>' +
         '</div>' +
       '</div>';
 
@@ -2979,7 +2981,7 @@ sidebar.innerHTML =
         document.getElementById('ai-chat-settings-exp-web-edit')._listenerAttached = true;
         document.getElementById('ai-chat-settings-exp-web-edit').addEventListener('change', function() {
           if (this.checked) {
-            if (!confirm('此功能为实验功能，还不完善。打开后有可能造成不可预期的错误，请谨慎开启。')) {
+            if (!confirm('此功能为实验功能，还不完善，请谨慎开启。')) {
               this.checked = false;
               return;
             }

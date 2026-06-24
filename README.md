@@ -1,6 +1,6 @@
-# 虎宝 (Hupilot) — 你的全能 AI 聊天助手
+# 虎宝 (Hupilot) — 你的全能 AI 宠物伙伴
 
-虎宝是一款浏览器 AI 聊天插件，**核心功能完全免费**。
+虎宝是一款浏览器 AI 宠物插件，**核心功能完全免费**。
 
 - **Edge 商店**: https://microsoftedge.microsoft.com/addons/detail/kgpeoblpookpclfcoicagocelngcaohe
 - **隐私政策**: https://huidezh.github.io/hupilot-privacy/
@@ -11,7 +11,7 @@
 - **本地文件读写 + 命令执行** — 安装本地主机后可执行 Shell/Python 命令、读写文档（.docx/.xlsx/.pptx），支持一键升级
 - **上下文压缩** — 对话超过 6 轮时自动总结旧历史，保留最近 2 轮完整对话，避免长对话超出模型上下文
 - **网页翻译** — 一键将整个网页翻译为目标语言
-- **联网搜索** — 支持百度网页搜索（无需 API Key）、百度智能搜索、Tavily 搜索
+- **联网搜索** — 支持百度网页搜索（无需 API Key）、百度智能搜索、Tavily 搜索、AnySearch 搜索
 - **PDF 阅读** — 自动提取 PDF 文字内容，可直接围绕 PDF 提问
 - **语音朗读 (TTS)** — AI 回答支持语音朗读，自动选择中文音色
 - **Outlook 邮件助手** — 在 Outlook Web 中一键优化邮件措辞、修正语法、调整语气
