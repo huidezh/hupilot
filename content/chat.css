@@ -2209,7 +2209,7 @@ html #ai-chat-sidebar div.ai-chat-settings-section {
   bottom: 0 !important;
   width: 100% !important;
   min-width: 0 !important;
-  height: 50vh !important;
+  height: 50dvh !important;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
   transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2221,7 +2221,7 @@ html #ai-chat-sidebar div.ai-chat-settings-section {
   box-shadow: none;
 }
 #ai-chat-sidebar.open.mobile-sheet.sheet-100 {
-  height: 100vh !important;
+  height: 100dvh !important;
 }
 #ai-chat-drag-handle {
   display: none;

@@ -132,6 +132,19 @@ if (transBtn) transBtn.style.display = expPageTranslationEnabled ? '' : 'none';
         startFloatingTimer();
       }
     }).catch(function() {});
+    // Mobile visualViewport listener - fix height when nav bar or keyboard appears
+    if (window.visualViewport) {
+      var _vvHandler = function() {
+        if (isMobileMode) {
+          var sidebar = document.getElementById('ai-chat-sidebar');
+          if (sidebar && sidebar.classList.contains('open') && sidebar.classList.contains('mobile-sheet')) {
+            sidebar.style.height = window.visualViewport.height + 'px';
+          }
+        }
+      };
+      window.visualViewport.addEventListener('resize', _vvHandler);
+      window.visualViewport.addEventListener('scroll', _vvHandler);
+    }
     document.addEventListener('htmlEditorReady', function() {
       editorInjected = true;
     });
@@ -1625,20 +1638,47 @@ sidebar.innerHTML =
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
         _touchData.moved = true;
         if (_touchData._timer) { clearTimeout(_touchData._timer); _touchData._timer = null; }
-        // Simulate mousedown for drag
         if (!isDragging) {
-          var md = new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, button: 0, bubbles: true, cancelable: true });
-          floatingBtn.dispatchEvent(md);
+          isDragging = true;
+          moved = false;
+          var rect = floatingBtn.getBoundingClientRect();
+          btnStartX = rect.left;
+          btnStartY = rect.top;
+          floatingBtn.style.cursor = 'grabbing';
+          dragStartX = t.clientX;
+          dragStartY = t.clientY;
+          if (petAnimator) petAnimator.pause();
+          if (petCanvas) { petCanvas.style.display = 'none'; btnImg.style.display = 'block'; }
+          if (btnImg) btnImg.src = dragIcon;
+          var label = document.getElementById('ai-chat-floating-label');
+          if (label) { label.textContent = '我在飞~'; label.style.visibility = 'visible'; }
         }
+        btnStartX += t.clientX - dragStartX;
+        btnStartY += t.clientY - dragStartY;
+        btnStartX = Math.max(0, Math.min(btnStartX, window.innerWidth - 70));
+        btnStartY = Math.max(0, Math.min(btnStartY, window.innerHeight - 90));
+        floatingBtn.style.left = btnStartX + 'px';
+        floatingBtn.style.top = btnStartY + 'px';
+        floatingBtn.style.right = 'auto';
+        floatingBtn.style.bottom = 'auto';
+        dragStartX = t.clientX;
+        dragStartY = t.clientY;
+        moved = true;
+        e.preventDefault();
       }
-    }, { passive: true });
+    }, { passive: false });
     floatingBtn.addEventListener('touchend', function(e) {
       if (!_touchData) return;
       if (_touchData._timer) { clearTimeout(_touchData._timer); _touchData._timer = null; }
       if (_touchData.moved) {
-        // End drag - simulate mouseup
-        var mu = new MouseEvent('mouseup', { bubbles: true, cancelable: true });
-        document.dispatchEvent(mu);
+        isDragging = false;
+        floatingBtn.style.cursor = 'grab';
+        if (btnImg) btnImg.src = normalIcon;
+        if (petAnimator && petCanvas) { btnImg.style.display = 'none'; petCanvas.style.display = 'block'; petAnimator.resume(); }
+        if (floatingHideTimer) { clearTimeout(floatingHideTimer); floatingHideTimer = null; }
+        var label = document.getElementById('ai-chat-floating-label');
+        if (label) label.style.visibility = 'hidden';
+        try { localStorage.setItem('hupilot_fx', btnStartX); localStorage.setItem('hupilot_fy', btnStartY); } catch(e) {}
       } else if (!_touchData.longPress && isMobileMode) {
         openSidebar();
       }
@@ -3101,9 +3141,6 @@ sidebar.innerHTML =
       var mmCb = document.getElementById('ai-chat-settings-mobile-mode');
       if (mmCb) {
         mmCb.checked = s.mobileMode === true;
-        mmCb.addEventListener('change', function() {
-          applyMobileMode(this.checked);
-        });
       }
       // Language
       var foundLang = false;
@@ -3340,6 +3377,7 @@ sidebar.innerHTML =
     var statusEl = document.getElementById('ai-chat-settings-status');
     saveAISettings(s).then(function() {
       if (applyDarkMode) applyDarkMode();
+      applyMobileMode(s.mobileMode);
       updateAllTtsButtons();
       showToast('设置已保存');
     }).catch(function(err) {
