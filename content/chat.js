@@ -185,6 +185,7 @@ sidebar.innerHTML =
               '<option value="tavily">Tavily</option>' +
             '</select>' +
             '<button id="ai-chat-shell-toggle" class="ai-chat-shell-off" title="开启后可执行命令及读写本地文件" style="display:none"><svg viewBox="0 0 16 16" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:translateY(1px)"><rect x="2" y="1" width="12" height="9" rx="1"/><line x1="5" y1="13" x2="11" y2="13"/><line x1="8" y1="10" x2="8" y2="13"/></svg></button>' +
+'<select id="ai-chat-skill-select" title="选择技能" style="display:none"><option value="">选择技能</option></select>' +
             '<button id="ai-chat-webqa-btn" title="此模式下不识别当前网页内容">联网问答模式</button>' +
 '<button id="ai-chat-browser-btn" title="通过 AI 操控此页面" style="display:none">浏览器操控</button>' +
 '<button id="ai-chat-bili-subtitle-btn" title="下载 B 站视频字幕" style="display:none">下载字幕</button>' +
@@ -666,6 +667,20 @@ sidebar.innerHTML =
       });
     });
     document.getElementById('ai-chat-webqa-btn').addEventListener('click', toggleWebQaMode);
+    document.getElementById('ai-chat-skill-select').addEventListener('change', function() {
+      var name = this.value;
+      if (!name) return;
+      var tag = '<skill name="' + name + '"/>';
+      if (inputEl.value.trim() && !inputEl.value.trim().endsWith(tag)) {
+        inputEl.value += ' ' + tag;
+      } else {
+        inputEl.value = tag;
+      }
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+      inputEl.focus();
+      this.value = '';
+    });
     document.getElementById('ai-chat-browser-btn').addEventListener('click', function() {
       chrome.runtime.sendMessage({ type: 'openBrowserPanel' });
     });
@@ -2538,6 +2553,8 @@ sidebar.innerHTML =
     btn.style.display = '';
     btn.classList.toggle('ai-chat-shell-off', !enabled);
     btn.classList.toggle('ai-chat-shell-on', !!enabled);
+    var skillSel = document.getElementById('ai-chat-skill-select');
+    if (skillSel) skillSel.style.display = (enabled && window.__skillList && window.__skillList.length > 0) ? '' : 'none';
   }
 
   function showSessionView() {
@@ -5159,6 +5176,17 @@ messages.push({ role: 'user', content: '【指令】以下规则优先级高于�
       if (window.__skillList && window.__skillList.length > 0) {
         var names = window.__skillList.map(function(s) { return s.name; }).join(', ');
         console.log('[Skills] loaded: ' + names);
+        var sel = document.getElementById('ai-chat-skill-select');
+        if (sel) {
+          sel.innerHTML = '<option value="">选择技能</option>';
+          for (var si = 0; si < window.__skillList.length; si++) {
+            var opt = document.createElement('option');
+            opt.value = window.__skillList[si].name;
+            opt.textContent = window.__skillList[si].name;
+            sel.appendChild(opt);
+          }
+        }
+        updateShellToggle();
       } else {
         console.log('[Skills] list empty');
       }
