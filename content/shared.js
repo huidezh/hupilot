@@ -125,7 +125,7 @@ var PYTHON_EXEC_TOOL = {
   type: 'function',
   function: {
     name: 'python_exec',
-    description: 'Execute Python code for calculation, data processing, and file reading (including .docx, .xlsx archives). Use this to read Word documents and other files that need Python libraries. When the user asks to read a file, you should use this tool - do NOT output Python code as text.',
+    description: 'Execute custom Python code (one-off calculation, data processing, file reading). For running existing .py script files, use shell_exec.',
     parameters: {
       type: 'object',
       properties: {
@@ -173,7 +173,7 @@ var SKILL_GET_TOOL = {
   }
 };
 
-var SHELL_HOST_LATEST_VERSION = '1.1.0';
+var SHELL_HOST_LATEST_VERSION = '1.1.1';
 
 function callShellHost(method, params) {
   if (!isExtensionValid()) return Promise.reject(new Error('扩展已重载，请刷新页面'));

@@ -1119,6 +1119,11 @@ html #ai-chat-sidebar div.ai-chat-settings-section {
   margin-right: 4px;
   accent-color: #607cd2;
 }
+.ai-chat-settings-row label:has(input[type="checkbox"]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .ai-chat-settings-radio-group {
   display: flex;
   gap: 12px;

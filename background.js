@@ -389,7 +389,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
     var url = tab.url || '';
     if (/^(chrome|edge):\/\//.test(url) || (url.indexOf('about:') === 0 && url.indexOf('about:blank') !== 0)) {
       chrome.windows.create({
-        url: chrome.runtime.getURL('standalone/chat.html'),
+        url: chrome.runtime.getURL('standalone/chat.html') + '?view=settings',
         type: 'popup',
         width: 440,
         height: 640

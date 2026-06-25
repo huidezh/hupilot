@@ -2,7 +2,12 @@
   function tryOpen() {
     var sidebar = document.getElementById('ai-chat-sidebar');
     if (sidebar && !sidebar.classList.contains('open')) {
-      document.dispatchEvent(new CustomEvent('aiChatToggle'));
+      var params = new URLSearchParams(location.search);
+      if (params.get('view') === 'settings') {
+        document.dispatchEvent(new CustomEvent('aiChatOpenSettings'));
+      } else {
+        document.dispatchEvent(new CustomEvent('aiChatToggle'));
+      }
     }
   }
   if (document.readyState === 'loading') {
